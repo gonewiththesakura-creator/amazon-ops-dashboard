@@ -1,64 +1,66 @@
-/* Global styles and modern dashboard theme */
+/* Amazon AI Opportunity Intelligence - Calm Executive Light Theme */
+:root {
+  --bg-app: #f6f7f9;
+  --bg-card: #ffffff;
+  --text-main: #111827;
+  --text-muted: #667085;
+  --border-color: #e5e7eb;
+  --primary-blue: #2563eb;
+  --primary-hover: #1d4ed8;
+  --success-green: #10b981;
+  --warning-amber: #f59e0b;
+  --danger-rose: #ef4444;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-main);
 }
 
-.kpi-card {
-  background-color: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(51, 65, 85, 0.7);
-  border-radius: 0.875rem;
-  padding: 0.875rem 1rem;
+.exec-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.exec-card-hover {
   transition: all 0.2s ease-in-out;
 }
-
-.kpi-card:hover {
-  border-color: rgba(99, 102, 241, 0.5);
-  transform: translateY(-1px);
+.exec-card-hover:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
-.kpi-title {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #94a3b8;
-}
-
-.kpi-value {
-  margin-top: 0.35rem;
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-}
-
-.kpi-sub {
-  margin-top: 0.25rem;
-  font-size: 0.6875rem;
-}
-
-.chart-card {
-  background-color: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(51, 65, 85, 0.7);
-  border-radius: 1rem;
-  padding: 1.25rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-}
-
-.chart-header {
+.nav-item {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 1rem;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #4b5563;
+  transition: all 0.15s ease;
+  cursor: pointer;
 }
 
-.chart-title {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: #ffffff;
+.nav-item:hover {
+  background-color: #f3f4f6;
+  color: #111827;
 }
 
-.chart-desc {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  margin-top: 0.15rem;
+.nav-item.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.nav-item.disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .chart-box {
@@ -66,39 +68,29 @@ body {
   height: 280px;
 }
 
-.tab-btn {
-  padding: 0.75rem 1rem;
-  border-bottom: 2px solid transparent;
-  color: #94a3b8;
-  transition: all 0.2s ease;
-  font-weight: 500;
+/* Badge styles */
+.badge-blue {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
 }
-
-.tab-btn:hover {
-  color: #f8fafc;
+.badge-green {
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
 }
-
-.tab-active {
-  color: #818cf8 !important;
-  border-bottom-color: #6366f1 !important;
-  font-weight: 600;
+.badge-amber {
+  background-color: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
 }
-
-/* Print optimizations */
-@media print {
-  body {
-    background-color: #ffffff !important;
-    color: #0f172a !important;
-  }
-  header, footer, button, select {
-    display: none !important;
-  }
-  .chart-card, .kpi-card {
-    background-color: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    color: #0f172a !important;
-  }
-  .chart-title {
-    color: #0f172a !important;
-  }
+.badge-rose {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.badge-gray {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
 }

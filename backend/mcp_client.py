@@ -1,6 +1,7 @@
 import httpx
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from .config import settings
 from .cache import cache
@@ -10,10 +11,10 @@ logging.basicConfig(level=logging.INFO)
 
 class SellerSpriteMCPClient:
     def __init__(self, mcp_url: str = settings.MCP_URL, secret_key: str = settings.MCP_SECRET):
-        self.mcp_url = mcp_url.rstrip("?")
+        # Strictly use clean URL, NO secret in query params
+        self.mcp_url = mcp_url.split("?")[0].rstrip("/")
         self.secret_key = secret_key
-        # Both header and url param ensure maximum compatibility with SellerSprite endpoint
-        self.target_url = f"{self.mcp_url}?secret-key={self.secret_key}"
+        self.target_url = self.mcp_url
         self.headers = {
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",
@@ -21,14 +22,33 @@ class SellerSpriteMCPClient:
         }
 
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any], use_cache: bool = True) -> Dict[str, Any]:
-        """Calls an MCP tool with caching and returns the parsed business data payload."""
+        """Calls an MCP tool securely using HTTP header authentication.
+        Returns a standardized envelope.
+        """
+        now_iso = datetime.now(timezone.utc).isoformat()
+        
+        # Check cache
         if use_cache:
             cached_result = cache.get(tool_name, arguments)
             if cached_result is not None:
-                logger.info(f"[CACHE HIT] {tool_name} with {arguments}")
-                return cached_result
+                logger.info(f"[CACHE HIT] {tool_name} with {json.dumps(arguments, ensure_ascii=False)}")
+                if isinstance(cached_result, dict) and "data" in cached_result and "code" in cached_result:
+                    extracted_data = cached_result["data"]
+                else:
+                    extracted_data = cached_result
+                return {
+                    "status": "ok",
+                    "source": "sellersprite_mcp_cache",
+                    "fetchedAt": now_iso,
+                    "freshnessHours": 0.1,
+                    "dataQuality": "high",
+                    "data": extracted_data,
+                    "error": None
+                }
 
-        logger.info(f"[MCP REQUEST] calling {tool_name} with {arguments}")
+        # Safe logging: never print credentials
+        logger.info(f"[MCP REQUEST] calling tool: {tool_name} | args: {json.dumps(arguments, ensure_ascii=False)}")
+
         payload = {
             "jsonrpc": "2.0",
             "id": 100,
@@ -43,15 +63,32 @@ class SellerSpriteMCPClient:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(self.target_url, headers=self.headers, json=payload)
                 resp.raise_for_status()
-                data = resp.json()
+                res_json = resp.json()
 
-                if "error" in data:
-                    logger.error(f"MCP RPC Error: {data['error']}")
-                    return {"code": "ERROR_RPC", "message": str(data["error"])}
+                if "error" in res_json:
+                    err_msg = str(res_json["error"])
+                    logger.error(f"MCP RPC Error: {err_msg}")
+                    return {
+                        "status": "error",
+                        "source": "sellersprite_mcp",
+                        "fetchedAt": now_iso,
+                        "freshnessHours": 0.0,
+                        "dataQuality": "empty",
+                        "data": None,
+                        "error": err_msg
+                    }
 
-                content_list = data.get("result", {}).get("content", [])
+                content_list = res_json.get("result", {}).get("content", [])
                 if not content_list:
-                    return {"code": "ERROR_EMPTY", "message": "No content in MCP response"}
+                    return {
+                        "status": "unavailable",
+                        "source": "sellersprite_mcp",
+                        "fetchedAt": now_iso,
+                        "freshnessHours": 0.0,
+                        "dataQuality": "empty",
+                        "data": None,
+                        "error": "No content returned from tool"
+                    }
 
                 raw_text = content_list[0].get("text", "{}")
                 try:
@@ -59,16 +96,53 @@ class SellerSpriteMCPClient:
                 except Exception:
                     business_data = {"raw": raw_text}
 
-                if use_cache and business_data.get("code") == "OK":
-                    cache.set(tool_name, arguments, business_data)
-
-                return business_data
+                code = business_data.get("code")
+                if code == "OK":
+                    extracted = business_data.get("data")
+                    if use_cache:
+                        cache.set(tool_name, arguments, extracted)
+                    return {
+                        "status": "ok",
+                        "source": "sellersprite_mcp",
+                        "fetchedAt": now_iso,
+                        "freshnessHours": 0.0,
+                        "dataQuality": "high",
+                        "data": extracted,
+                        "error": None
+                    }
+                else:
+                    msg = business_data.get("message") or f"MCP Code {code}"
+                    return {
+                        "status": "unavailable" if code in ("NOT_FOUND", "NO_DATA") else "error",
+                        "source": "sellersprite_mcp",
+                        "fetchedAt": now_iso,
+                        "freshnessHours": 0.0,
+                        "dataQuality": "empty",
+                        "data": None,
+                        "error": msg
+                    }
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP Error {e.response.status_code}: {e.response.text}")
-            return {"code": f"HTTP_{e.response.status_code}", "message": e.response.text}
+            logger.error(f"HTTP Error {e.response.status_code}")
+            return {
+                "status": "error",
+                "source": "sellersprite_mcp",
+                "fetchedAt": now_iso,
+                "freshnessHours": 0.0,
+                "dataQuality": "empty",
+                "data": None,
+                "error": f"HTTP {e.response.status_code}"
+            }
         except Exception as e:
             logger.error(f"Failed to call MCP tool {tool_name}: {str(e)}")
-            return {"code": "ERROR_EXCEPTION", "message": str(e)}
+            return {
+                "status": "error",
+                "source": "sellersprite_mcp",
+                "fetchedAt": now_iso,
+                "freshnessHours": 0.0,
+                "dataQuality": "empty",
+                "data": None,
+                "error": str(e)
+            }
 
 mcp_client = SellerSpriteMCPClient()
