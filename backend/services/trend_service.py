@@ -6,11 +6,11 @@ from ..database import db
 logger = logging.getLogger("trend_service")
 
 def get_dashboard_trends(time_range: str = "12m") -> Dict[str, Any]:
-    """Generates the full Trend Cockpit (趋势驾驶舱) dataset reading directly from local warehouse.
-    1. Top 4 mini KPIs
-    2. Visual 1: Memory Foam Pillows 12-Month Market Trend (Units & Revenue) + Today 3 Conclusions
-    3. Visual 2: 4 Core SKUs 90-Day Trend (Units, BSR, Price; SKU 4 explicitly unconfigured) + Who Needs Attention
-    4. Row 3: We vs Top 5 Direct Competitors Horizontal Bar + Gap Analysis
+    """Generates the full Trend Cockpit (趋势驾驶舱) dataset reading purely from local SQLite database.
+    ZERO FABRICATED DATA RULE:
+    - Never hardcode business numbers, fake arrays, or synthetic curves.
+    - If historical data points are insufficient, explicitly report hasSufficientHistory=False.
+    - All external estimated sales are explicitly labeled 'sellerSpriteEstimatedMonthlyUnits'.
     """
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
@@ -19,247 +19,396 @@ def get_dashboard_trends(time_range: str = "12m") -> Dict[str, Any]:
     with db.get_connection() as conn:
         cursor = conn.cursor()
 
-        # 1. Monitored counts & core products
-        cursor.execute("SELECT asin, sku, internal_name, status FROM products WHERE is_core_pillow = 1 ORDER BY id ASC")
+        # 1. Fetch configured core products
+        cursor.execute("SELECT asin, sku, internal_name, product_type, status FROM products WHERE is_core_pillow = 1 ORDER BY id ASC")
         core_products = [dict(r) for r in cursor.fetchall()]
 
-        cursor.execute("SELECT COUNT(DISTINCT competitor_asin) FROM competitor_sets WHERE group_type = 'direct' AND verified = 1 AND active = 1")
-        direct_comp_count = cursor.fetchone()[0] or 0
-
-        # Latest sales snapshot for core products
+        # 2. Fetch confirmed direct competitors (excluding ignored)
         cursor.execute("""
-            SELECT s.asin, s.price, s.estimated_units, s.bsr, s.rating, s.reviews, s.snapshot_date
-            FROM asin_snapshots s
-            INNER JOIN (
-                SELECT asin, MAX(snapshot_date) as max_date FROM asin_snapshots GROUP BY asin
-            ) latest ON s.asin = latest.asin AND s.snapshot_date = latest.max_date
+            SELECT competitor_asin, owner_asin, group_type, source, verified, notes, 
+                   parent_asin, metric_scope, why_competitor, relative_summary, executive_conclusion
+            FROM competitor_sets 
+            WHERE group_type = 'direct' AND verified = 1 AND active = 1 AND (status IS NULL OR status != 'ignored')
+            ORDER BY id ASC
         """)
-        latest_snaps = {r["asin"]: dict(r) for r in cursor.fetchall()}
+        confirmed_direct_comps = [dict(r) for r in cursor.fetchall()]
+        direct_comp_count = len(confirmed_direct_comps)
 
-    # Calculate Top 4 Mini KPIs
+        # 3. Latest snapshots for all core products and confirmed direct competitors
+        all_asins = [p["asin"] for p in core_products if p["asin"] != "PENDING_SKU_4"]
+        all_asins += [c["competitor_asin"] for c in confirmed_direct_comps]
+        all_asins = list(set(all_asins))
+
+        latest_snaps: Dict[str, Dict[str, Any]] = {}
+        if all_asins:
+            placeholders = ",".join("?" for _ in all_asins)
+            cursor.execute(f"""
+                SELECT s.asin, s.price, s.estimated_units, s.bsr, s.rating, s.reviews, s.snapshot_date, s.source
+                FROM asin_snapshots s
+                INNER JOIN (
+                    SELECT asin, MAX(snapshot_date) as max_date FROM asin_snapshots 
+                    WHERE asin IN ({placeholders})
+                    GROUP BY asin
+                ) latest ON s.asin = latest.asin AND s.snapshot_date = latest.max_date
+            """, all_asins)
+            latest_snaps = {r["asin"]: dict(r) for r in cursor.fetchall()}
+
+    # --- Top 4 Mini KPIs ---
     active_core_asins = [p["asin"] for p in core_products if p["status"] == "active" and p["asin"] != "PENDING_SKU_4"]
-    total_monthly_units = sum(latest_snaps[a]["estimated_units"] for a in active_core_asins if a in latest_snaps and latest_snaps[a].get("estimated_units"))
-    if total_monthly_units == 0:
-        total_monthly_units = 14350 # Realistic baseline if fresh warehouse accumulation
+    total_monthly_units = 0
+    units_available = False
+    for asin in active_core_asins:
+        snap = latest_snaps.get(asin)
+        if snap and snap.get("estimated_units") is not None:
+            total_monthly_units += snap["estimated_units"]
+            units_available = True
 
-    mini_kpis = {
-        "coreMonthlyUnits": total_monthly_units,
-        "momGrowth": "+14.8%",
-        "momDirection": "up",
-        "directCompetitorsCount": direct_comp_count,
-        "dataFreshness": now_display
-    }
+    # Check 30d trend from SQLite snapshots for active core products
+    mom_growth_label = "从今日开始积累"
+    mom_direction = "neutral"
+    has_30d_history = False
 
-    # 2. Visual 1: Memory Foam Pillow Market 12-Month Trend (Home & Kitchen > Bedding > Neck Pillows)
-    # Seasonal patterns reflect real US bedding/pillow seasonality (Q4 holiday surge, Jan refresh, summer steady)
-    market_12m_trend = [
-        {"month": "2025-10", "units": 348000, "revenue": 13572000, "avgPrice": 39.0},
-        {"month": "2025-11", "units": 445000, "revenue": 17132500, "avgPrice": 38.5}, # Black Friday
-        {"month": "2025-12", "units": 492000, "revenue": 19434000, "avgPrice": 39.5}, # Holiday gifting
-        {"month": "2026-01", "units": 388000, "revenue": 15520000, "avgPrice": 40.0}, # New Year resolution
-        {"month": "2026-02", "units": 352000, "revenue": 13904000, "avgPrice": 39.5},
-        {"month": "2026-03", "units": 366000, "revenue": 14274000, "avgPrice": 39.0},
-        {"month": "2026-04", "units": 371000, "revenue": 14469000, "avgPrice": 39.0},
-        {"month": "2026-05", "units": 385000, "revenue": 15015000, "avgPrice": 39.0},
-        {"month": "2026-06", "units": 394000, "revenue": 15366000, "avgPrice": 39.0},
-        {"month": "2026-07", "units": 412000, "revenue": 16068000, "avgPrice": 39.0},
-        {"month": "2026-08", "units": 398000, "revenue": 15522000, "avgPrice": 39.0},
-        {"month": "2026-09", "units": 373000, "revenue": 14733500, "avgPrice": 39.5}  # Current node volume
-    ]
-
-    today_conclusions = [
-        {
-            "title": "大盘走势判断",
-            "badge": "稳定期",
-            "content": "记忆棉颈椎枕类目当前月度容量为 37.3 万件，8-9 月处于三季度季节性平台期；进入 10 月下旬后预计将随黑五网一备货迎来 30%+ 销量脉冲。"
-        },
-        {
-            "title": "主力价格带观察",
-            "badge": "$35-$48",
-            "content": "类目核心走量价格区间高度集中在 $35-$48（占据 62% 销售额），低于 $25 的低价款因支撑度客诉偏高逐渐被边缘化。"
-        },
-        {
-            "title": "头部竞争格局",
-            "badge": "结构性机会",
-            "content": "头部品牌 Derila CR4 集中度略有下降（32.5% -> 29.8%），消费者对'分体护颈'与'冰丝外套'细分卖点搜索意愿增强，为腰部新品切入留下空间。"
-        }
-    ]
-
-    # 3. Visual 2: 4 Core SKUs 90-Day Trend (Units, BSR, Price)
-    # 90-Day intervals (bi-weekly tracking points across last 90 days)
-    history_dates = [
-        "2026-06-25", "2026-07-10", "2026-07-25", 
-        "2026-08-10", "2026-08-25", "2026-09-10", "2026-09-22"
-    ]
-
-    # Real SKU historical datasets
-    sku_series = {
-        "B0GYH8WT22": {
-            "name": "刘总枕头 (LIU-B0GYH8WT22)",
-            "asin": "B0GYH8WT22",
-            "isConfigured": True,
-            "units": [4800, 5200, 5650, 6100, 6400, 6750, 7120],
-            "bsr": [115, 102, 94, 88, 82, 75, 68],
-            "price": [49.99, 49.99, 47.99, 46.99, 45.99, 45.99, 45.99]
-        },
-        "B0GY2TDLTZ": {
-            "name": "江西灰色 (ELOVNOVA-Gray)",
-            "asin": "B0GY2TDLTZ",
-            "isConfigured": True,
-            "units": [2600, 2850, 3100, 3350, 3600, 3850, 4150],
-            "bsr": [245, 220, 210, 195, 182, 170, 158],
-            "price": [39.99, 39.99, 39.99, 38.99, 38.99, 38.99, 38.99]
-        },
-        "B0GY2WGTDM": {
-            "name": "江西蓝色 (ELOVNOVA-Blue)",
-            "asin": "B0GY2WGTDM",
-            "isConfigured": True,
-            "units": [2100, 2250, 2400, 2600, 2750, 2900, 3080],
-            "bsr": [310, 295, 280, 265, 252, 240, 228],
-            "price": [39.99, 39.99, 39.99, 39.99, 39.99, 39.99, 39.99]
-        },
-        "PENDING_SKU_4": {
-            "name": "待配置核心枕头SKU",
-            "asin": "PENDING_SKU_4",
-            "isConfigured": False,
-            "notice": "待配置核心枕头SKU（系统已开启监听槽位，不伪造假线）",
-            "units": None,
-            "bsr": None,
-            "price": None
-        }
-    }
-
-    sku_spotlight = [
-        {
-            "asin": "B0GYH8WT22",
-            "name": "刘总枕头 (主力款)",
-            "badge": "领跑突破",
-            "status": "normal",
-            "insight": "价格从 $49.99 小幅优化至 $45.99 后，近 90 天销量从 4,800 件攀升至 7,120 件 (+48%)，BSR 稳步冲进 Top 70。"
-        },
-        {
-            "asin": "B0GY2TDLTZ",
-            "name": "江西灰色 (增长主力)",
-            "badge": "稳中有升",
-            "status": "normal",
-            "insight": "灰色款月销突破 4,100 件，BSR 排名进入 Top 160，评分 4.4 保持稳定，复购与好评转化率优于蓝色款。"
-        },
-        {
-            "asin": "PENDING_SKU_4",
-            "name": "第 4 款核心 SKU",
-            "badge": "待上架配置",
-            "status": "warning",
-            "insight": "当前槽位处于待配置状态。建议在下半年上架 1 款针对侧睡护肩加高款，以补齐现有产品矩阵的价格与人群盲区。"
-        }
-    ]
-
-    # 4. Row 3: We vs Top 5 Direct Competitors Horizontal Bar
-    # Fetch real direct competitors or verified benchmarks from database
     with db.get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT competitor_asin, similarity_score, notes 
-            FROM competitor_sets 
-            WHERE (group_type = 'direct' OR group_type = 'benchmark') AND active = 1
-            ORDER BY verified DESC, id ASC LIMIT 5
-        """)
-        raw_comps = cursor.fetchall()
+        if active_core_asins:
+            placeholders = ",".join("?" for _ in active_core_asins)
+            cursor.execute(f"""
+                SELECT snapshot_date, SUM(estimated_units) as total_units
+                FROM asin_snapshots
+                WHERE asin IN ({placeholders}) AND estimated_units IS NOT NULL
+                GROUP BY snapshot_date
+                ORDER BY snapshot_date ASC
+            """, active_core_asins)
+            date_sums = cursor.fetchall()
+            if len(date_sums) >= 2:
+                distinct_dates = [r["snapshot_date"] for r in date_sums]
+                if len(distinct_dates) >= 25:
+                    first_val = date_sums[0]["total_units"]
+                    last_val = date_sums[-1]["total_units"]
+                    if first_val and first_val > 0 and last_val is not None:
+                        pct = round(((last_val - first_val) / first_val) * 100, 1)
+                        mom_growth_label = f"{pct:+g}%"
+                        mom_direction = "up" if pct > 0 else ("down" if pct < 0 else "neutral")
+                        has_30d_history = True
+                else:
+                    mom_growth_label = f"已积累 {len(distinct_dates)} 天"
+            elif len(date_sums) == 1:
+                mom_growth_label = "已建立首个时点"
 
-    competitor_bar_data = [
-        {
-            "asin": "B0GYH8WT22",
-            "brand": "ELOVNOVA (我方旗舰)",
-            "isOur": True,
-            "monthlyUnits": 7120,
-            "price": 45.99,
-            "rating": 4.5,
-            "reviews": 1820
-        },
-        {
-            "asin": "B0H377GYGF",
-            "brand": "Derila (头部标杆)",
-            "isOur": False,
-            "monthlyUnits": 12800,
-            "price": 49.95,
-            "rating": 4.4,
-            "reviews": 15400
-        },
-        {
-            "asin": "B0FG2SH6K5",
-            "brand": "Derila Butterfly",
-            "isOur": False,
-            "monthlyUnits": 9600,
-            "price": 44.99,
-            "rating": 4.3,
-            "reviews": 8900
-        },
-        {
-            "asin": "B0GN8Z748C",
-            "brand": "Cervical Contour Pro",
-            "isOur": False,
-            "monthlyUnits": 8400,
-            "price": 42.99,
-            "rating": 4.4,
-            "reviews": 6300
-        },
-        {
-            "asin": "B0GY2TDLTZ",
-            "brand": "ELOVNOVA-Gray (我方灰色)",
-            "isOur": True,
-            "monthlyUnits": 4150,
-            "price": 38.99,
-            "rating": 4.4,
-            "reviews": 920
-        },
-        {
-            "asin": "B0F3NTQCYP",
-            "brand": "SleepJoy Contour",
-            "isOur": False,
-            "monthlyUnits": 5200,
-            "price": 36.99,
-            "rating": 4.2,
-            "reviews": 3100
+    mini_kpis = {
+        "coreMonthlyUnits": total_monthly_units if units_available else 0,
+        "sellerSpriteEstimatedMonthlyUnits": total_monthly_units if units_available else 0,
+        "metricLabel": "卖家精灵预估月销量",
+        "credibilityBadge": "🟡 第三方估算" if units_available else "⚪ 数据积累中",
+        "momGrowth": mom_growth_label,
+        "momDirection": mom_direction,
+        "has30dHistory": has_30d_history,
+        "directCompetitorsCount": direct_comp_count,
+        "dataFreshness": now_display,
+        "tooltip": {
+            "sourceTool": "sellersprite_mcp",
+            "metricType": "第三方月度销量估算",
+            "fetchedAt": now_iso,
+            "formula": "核心已配置在售SKU最新月估算销量汇总"
         }
-    ]
-
-    # Calculate Gap & Median differences
-    comp_units = [c["monthlyUnits"] for c in competitor_bar_data if not c["isOur"]]
-    comp_prices = [c["price"] for c in competitor_bar_data if not c["isOur"]]
-    comp_reviews = [c["reviews"] for c in competitor_bar_data if not c["isOur"]]
-
-    median_comp_units = sorted(comp_units)[len(comp_units) // 2] if comp_units else 8400
-    median_comp_price = sorted(comp_prices)[len(comp_prices) // 2] if comp_prices else 43.99
-    median_comp_reviews = sorted(comp_reviews)[len(comp_reviews) // 2] if comp_reviews else 7600
-
-    gap_analysis = {
-        "ourFlagshipUnits": 7120,
-        "compMedianUnits": median_comp_units,
-        "unitsGap": 7120 - median_comp_units,
-        "ourFlagshipPrice": 45.99,
-        "compMedianPrice": median_comp_price,
-        "priceDiff": round(45.99 - median_comp_price, 2),
-        "compMedianReviews": median_comp_reviews,
-        "reviewGapSummary": f"直接竞品 Review 中位数约 {median_comp_reviews:,} 条，我方主力款为 1,820 条，主要差距在存量评论沉淀，需持续把控退货率以促进自然留评。"
     }
+
+    # --- Visual 1: Market 12-Month Trend (from SQLite market_snapshots) ---
+    cervical_node_path = "1055398:1063252:1199122:3732111"
+    raw_market_history = db.get_market_real_history(cervical_node_path, months=12)
+    
+    market_monthly_points: List[Dict[str, Any]] = []
+    for item in raw_market_history:
+        market_monthly_points.append({
+            "month": item["month"],
+            "units": item.get("units"),
+            "sellerSpriteEstimatedMonthlyUnits": item.get("units"),
+            "revenue": item.get("revenue"),
+            "avgPrice": item.get("avgPrice")
+        })
+
+    # Strict Zero Fake Curve check: if less than 6 months of snapshots, mark insufficient
+    has_sufficient_market_history = len(market_monthly_points) >= 6
+    market_notice = None
+    if not has_sufficient_market_history:
+        recorded_count = len(market_monthly_points)
+        if recorded_count == 0:
+            market_notice = "市场大盘数据积累中（本地数据库尚无历史时序切片），系统严禁伪造 12 个月平滑走势"
+        else:
+            market_notice = f"市场大盘数据积累中（当前已记录 {recorded_count} 个时点），系统严禁伪造 12 个月假走势"
+
+    latest_market_volume = market_monthly_points[-1]["units"] if market_monthly_points else None
+
+    # --- Today Conclusions (Dynamically generated from real database state) ---
+    today_conclusions = []
+    
+    # 1. Market status conclusion
+    if latest_market_volume:
+        today_conclusions.append({
+            "title": "大盘走势判断",
+            "badge": "真实快照",
+            "content": f"记忆棉颈椎枕类目最新快照月度总容量为 {latest_market_volume:,} 件，每日自动持续监测大盘容量变动。"
+        })
+    else:
+        today_conclusions.append({
+            "title": "大盘走势判断",
+            "badge": "积累监控中",
+            "content": "已锁定 Neck & Cervical Pillows (3732111) 核心四级细分节点，定时任务每日抓取大盘变动，拒绝虚构假走势。"
+        })
+
+    # 2. Pricing conclusion based on active SKUs
+    active_prices = [latest_snaps[a]["price"] for a in active_core_asins if a in latest_snaps and latest_snaps[a].get("price")]
+    if active_prices:
+        min_p = min(active_prices)
+        max_p = max(active_prices)
+        today_conclusions.append({
+            "title": "我方价格带分布",
+            "badge": f"${min_p:.2f}-${max_p:.2f}",
+            "content": f"我方主力在售核心枕头定价在 ${min_p:.2f} 至 ${max_p:.2f} 区间，主打记忆棉人体工学颈椎分区支撑，保持健康溢价。"
+        })
+    else:
+        today_conclusions.append({
+            "title": "主力价格带观察",
+            "badge": "监控建立中",
+            "content": "类目核心走量价格带正通过每日类目快照追踪，聚焦中高端分区颈椎枕消费需求。"
+        })
+
+    # 3. Competitor status conclusion
+    if direct_comp_count > 0:
+        today_conclusions.append({
+            "title": "直接竞品对标",
+            "badge": f"已锁定 {direct_comp_count} 款",
+            "content": f"系统已建立 {direct_comp_count} 款已确认核心直接竞品的每日走势与参数监控，可穿透查看具体差距。"
+        })
+    else:
+        today_conclusions.append({
+            "title": "竞品对标状态",
+            "badge": "待确认",
+            "content": "当前尚未锁定已确认的直接竞品。系统已在战情室准备候选推荐池，请运营人员确认 3-5 款核心竞品加入每日追踪。"
+        })
+
+    # --- Visual 2: 4 Core SKUs 90-Day Trend (Pure SQL queries, ZERO fake series) ---
+    sku_series: Dict[str, Any] = {}
+    all_dates_set = set()
+
+    for prod in core_products:
+        p_asin = prod["asin"]
+        if p_asin == "PENDING_SKU_4":
+            sku_series["PENDING_SKU_4"] = {
+                "name": "待配置核心枕头SKU",
+                "asin": "PENDING_SKU_4",
+                "isConfigured": False,
+                "hasSufficientHistory": False,
+                "notice": "待配置核心枕头SKU（系统已开启监听槽位，不伪造假线）",
+                "units": None,
+                "sellerSpriteEstimatedMonthlyUnits": None,
+                "bsr": None,
+                "price": None
+            }
+            continue
+
+        hist = db.get_sku_real_history(p_asin, days=90)
+        p_dates = [s["date"] for s in hist["snapshots"] if s.get("date")]
+        for d in p_dates:
+            all_dates_set.add(d)
+
+        units_list = [s.get("units") for s in hist["snapshots"]]
+        bsr_list = [s.get("bsr") for s in hist["snapshots"]]
+        price_list = [s.get("price") for s in hist["snapshots"]]
+
+        sku_series[p_asin] = {
+            "name": f"{prod['internal_name']} ({prod['sku']})",
+            "asin": p_asin,
+            "isConfigured": True,
+            "hasSufficientHistory": hist["hasSufficientHistory"],
+            "historyDays": hist["historyDays"],
+            "notice": None if hist["hasSufficientHistory"] else f"数据积累中（已记录 {hist['historyDays']} 天，满30天出完整线）",
+            "dates": p_dates,
+            "units": units_list if units_list else None,
+            "sellerSpriteEstimatedMonthlyUnits": units_list if units_list else None,
+            "bsr": bsr_list if bsr_list else None,
+            "price": price_list if price_list else None,
+            "credibilityBadge": "🟢 本地真实采样"
+        }
+
+    sorted_dates = sorted(list(all_dates_set))
+    has_sufficient_sku_history = len(sorted_dates) >= 15
+
+    # Align series data to sorted_dates if points exist
+    if sorted_dates:
+        for p_asin, s_data in sku_series.items():
+            if not s_data["isConfigured"] or not s_data.get("dates"):
+                continue
+            date_idx = {d: i for i, d in enumerate(s_data["dates"])}
+            aligned_units = []
+            aligned_bsr = []
+            aligned_price = []
+            for d in sorted_dates:
+                if d in date_idx:
+                    idx = date_idx[d]
+                    aligned_units.append(s_data["units"][idx] if s_data["units"] else None)
+                    aligned_bsr.append(s_data["bsr"][idx] if s_data["bsr"] else None)
+                    aligned_price.append(s_data["price"][idx] if s_data["price"] else None)
+                else:
+                    aligned_units.append(None)
+                    aligned_bsr.append(None)
+                    aligned_price.append(None)
+            s_data["units"] = aligned_units
+            s_data["sellerSpriteEstimatedMonthlyUnits"] = aligned_units
+            s_data["bsr"] = aligned_bsr
+            s_data["price"] = aligned_price
+
+    sku_90d_trends = {
+        "dates": sorted_dates,
+        "series": sku_series,
+        "hasSufficientHistory": has_sufficient_sku_history,
+        "insufficientNotice": "时序历史数据积累中，系统坚守零伪造原则，不生成虚构平滑曲线" if not has_sufficient_sku_history else None,
+        "unconfiguredNotice": "PENDING_SKU_4 待配置（不画假线）"
+    }
+
+    # SKU Spotlight (Dynamic per active SKU)
+    sku_spotlight = []
+    for prod in core_products:
+        p_asin = prod["asin"]
+        if p_asin == "PENDING_SKU_4":
+            sku_spotlight.append({
+                "asin": "PENDING_SKU_4",
+                "name": "第 4 款核心 SKU",
+                "badge": "待上架配置",
+                "status": "warning",
+                "insight": "当前槽位处于待配置状态。建议根据细分人群（如侧睡加高款）规划新品，补齐价格带与形态盲区。"
+            })
+            continue
+
+        snap = latest_snaps.get(p_asin, {})
+        price_val = snap.get("price")
+        units_val = snap.get("estimated_units")
+        bsr_val = snap.get("bsr")
+        rating_val = snap.get("rating")
+
+        price_str = f"${price_val:.2f}" if price_val else "标价待采集"
+        units_str = f"月估 {units_val:,} 件" if units_val else "销量积累中"
+        bsr_str = f"大类 #{bsr_val:,}" if bsr_val else "BSR待刷新"
+        rating_str = f"{rating_val}★" if rating_val else "评分正常"
+
+        insight = f"当前标价 {price_str}，卖家精灵预估 {units_str}，{bsr_str}，买家评分 {rating_str}。每日自动监测异动。"
+        sku_spotlight.append({
+            "asin": p_asin,
+            "name": f"{prod['internal_name']}",
+            "badge": "在售监控",
+            "status": "normal",
+            "insight": insight
+        })
+
+    # --- Row 3: We vs Confirmed Direct Competitors Horizontal Bar ---
+    competitor_bar_data: List[Dict[str, Any]] = []
+
+    # Add flagship SKU first (B0GYH8WT22)
+    flagship_asin = "B0GYH8WT22"
+    flagship_snap = latest_snaps.get(flagship_asin, {})
+    flagship_units = flagship_snap.get("estimated_units")
+    flagship_price = flagship_snap.get("price")
+    flagship_rating = flagship_snap.get("rating")
+    flagship_reviews = flagship_snap.get("reviews")
+
+    competitor_bar_data.append({
+        "asin": flagship_asin,
+        "brand": "ELOVNOVA (我方旗舰)",
+        "isOur": True,
+        "monthlyUnits": flagship_units or 0,
+        "sellerSpriteEstimatedMonthlyUnits": flagship_units,
+        "price": flagship_price,
+        "rating": flagship_rating,
+        "reviews": flagship_reviews or 0,
+        "credibilityBadge": "🟢 本地仓库核验",
+        "sourceTool": "sellersprite_mcp",
+        "metricScope": "child_asin"
+    })
+
+    # Add ONLY confirmed direct competitors (strictly from DB!)
+    for comp in confirmed_direct_comps:
+        c_asin = comp["competitor_asin"]
+        c_snap = latest_snaps.get(c_asin, {})
+        c_units = c_snap.get("estimated_units")
+        c_price = c_snap.get("price")
+        c_rating = c_snap.get("rating")
+        c_reviews = c_snap.get("reviews")
+
+        competitor_bar_data.append({
+            "asin": c_asin,
+            "brand": comp.get("notes") or f"直接竞品 ({c_asin})",
+            "isOur": False,
+            "monthlyUnits": c_units or 0,
+            "sellerSpriteEstimatedMonthlyUnits": c_units,
+            "price": c_price,
+            "rating": c_rating,
+            "reviews": c_reviews or 0,
+            "credibilityBadge": "🟡 卖家精灵预估月销量 (第三方估算)",
+            "sourceTool": "sellersprite_mcp",
+            "metricScope": comp.get("metric_scope") or "child_asin",
+            "whyCompetitor": comp.get("why_competitor") or "同品类直接竞品"
+        })
+
+    # Calculate real gap analysis
+    other_comps = [c for c in competitor_bar_data if not c["isOur"] and c.get("monthlyUnits")]
+    other_prices = [c["price"] for c in competitor_bar_data if not c["isOur"] and c.get("price")]
+    other_reviews = [c["reviews"] for c in competitor_bar_data if not c["isOur"] and c.get("reviews") is not None]
+
+    if other_comps:
+        sorted_u = sorted([c["monthlyUnits"] for c in other_comps])
+        med_u = sorted_u[len(sorted_u) // 2]
+        sorted_p = sorted(other_prices) if other_prices else []
+        med_p = sorted_p[len(sorted_p) // 2] if sorted_p else (flagship_price or 0.0)
+        sorted_r = sorted(other_reviews) if other_reviews else []
+        med_r = sorted_r[len(sorted_r) // 2] if sorted_r else 0
+
+        u_gap = (flagship_units or 0) - med_u
+        p_diff = round((flagship_price or 0.0) - med_p, 2)
+        r_diff = (flagship_reviews or 0) - med_r
+
+        rev_summary = f"已纳管直接竞品 Review 中位数约 {med_r:,} 条，我方主力款为 {flagship_reviews or 0:,} 条，差距在存量评价沉淀。"
+        gap_analysis = {
+            "hasDirectCompetitors": True,
+            "directCount": len(other_comps),
+            "ourFlagshipUnits": flagship_units or 0,
+            "compMedianUnits": med_u,
+            "unitsGap": u_gap,
+            "ourFlagshipPrice": flagship_price or 0.0,
+            "compMedianPrice": med_p,
+            "priceDiff": p_diff,
+            "compMedianReviews": med_r,
+            "reviewGapSummary": rev_summary
+        }
+    else:
+        gap_analysis = {
+            "hasDirectCompetitors": False,
+            "directCount": 0,
+            "ourFlagshipUnits": flagship_units or 0,
+            "compMedianUnits": None,
+            "unitsGap": 0,
+            "ourFlagshipPrice": flagship_price or 0.0,
+            "compMedianPrice": None,
+            "priceDiff": 0.0,
+            "compMedianReviews": None,
+            "reviewGapSummary": "尚未确认直接竞品。请在 4 SKU 战情室中从候选竞品池添加 3-5 款核心对标竞品以激活实时差距分析。"
+        }
 
     return {
         "status": "ok",
-        "source": "trend_service_v2.4",
+        "source": "trend_service_v2.6",
         "fetchedAt": now_iso,
         "data": {
             "miniKpis": mini_kpis,
             "market12mTrend": {
-                "categoryLabel": "Home & Kitchen > Bedding > Neck & Cervical Pillows",
-                "nodeIdPath": "1055398:1063252:1199122:3732111",
-                "monthlyPoints": market_12m_trend,
-                "currentVolume": 373000
+                "categoryLabel": "Home & Kitchen > Bedding > Bed Pillows & Positioners > Neck & Cervical Pillows",
+                "nodeIdPath": cervical_node_path,
+                "hasSufficientHistory": has_sufficient_market_history,
+                "insufficientNotice": market_notice,
+                "monthlyPoints": market_monthly_points,
+                "currentVolume": latest_market_volume
             },
             "todayConclusions": today_conclusions,
-            "sku90dTrends": {
-                "dates": history_dates,
-                "series": sku_series,
-                "unconfiguredNotice": "PENDING_SKU_4 待配置（不画假线）"
-            },
+            "sku90dTrends": sku_90d_trends,
             "skuSpotlight": sku_spotlight,
             "competitorComparison": {
                 "chartData": competitor_bar_data,

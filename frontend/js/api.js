@@ -172,6 +172,10 @@ const API = {
     return this.post(`/api/core-products/${asin}/competitors/confirm`, { competitorAsin });
   },
 
+  ignoreCompetitor(asin, competitorAsin) {
+    return this.post(`/api/core-products/${asin}/competitors/${competitorAsin}/ignore`, {});
+  },
+
   async deleteCompetitor(asin, competitorAsin) {
     try {
       const res = await fetch(`/api/core-products/${asin}/competitors/${competitorAsin}`, {

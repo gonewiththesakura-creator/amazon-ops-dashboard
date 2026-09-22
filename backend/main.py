@@ -21,7 +21,8 @@ from .services.core_product_service import (
     get_core_products_comparison,
     add_direct_competitor,
     confirm_suggested_competitor,
-    remove_direct_competitor
+    remove_direct_competitor,
+    ignore_candidate_competitor
 )
 from .services.pipeline_service import (
     get_pipeline_products_list,
@@ -132,7 +133,7 @@ async def health():
     return {
         "status": "ok",
         "service": "Amazon AI Opportunity Intelligence",
-        "version": "2.5.0",
+        "version": "2.6.0",
         "mcp_url": settings.MCP_URL
     }
 
@@ -221,6 +222,17 @@ async def api_delete_competitor(asin: str, comp_asin: str):
         "ownerAsin": asin,
         "competitorAsin": comp_asin.strip().upper(),
         "message": f"已从直接竞品池移除 {comp_asin}"
+    }
+
+@app.post("/api/core-products/{asin}/competitors/{comp_asin}/ignore")
+async def api_ignore_competitor(asin: str, comp_asin: str):
+    success = ignore_candidate_competitor(asin, comp_asin.strip().upper())
+    return {
+        "status": "ok",
+        "success": success,
+        "ownerAsin": asin,
+        "competitorAsin": comp_asin.strip().upper(),
+        "message": f"已忽略候选竞品 {comp_asin}，后续将不再向您推荐"
     }
 
 # ----------------- Dashboard Trend Cockpit (V2.4) -----------------

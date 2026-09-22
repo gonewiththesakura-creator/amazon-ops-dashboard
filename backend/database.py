@@ -116,7 +116,15 @@ class Database:
                 ("relationship_summary", "TEXT"),
                 ("gap_insight", "TEXT"),
                 ("price_diff", "REAL"),
-                ("units_ratio", "REAL")
+                ("units_ratio", "REAL"),
+                ("parent_asin", "TEXT"),
+                ("variation_family_id", "TEXT"),
+                ("metric_scope", "TEXT DEFAULT 'child_asin'"),
+                ("why_competitor", "TEXT"),
+                ("relative_summary", "TEXT"),
+                ("executive_conclusion", "TEXT"),
+                ("credibility_badge", "TEXT DEFAULT '🟡 第三方估算'"),
+                ("status", "TEXT DEFAULT 'active'")
             ]:
                 try:
                     cursor.execute(f"ALTER TABLE competitor_sets ADD COLUMN {col_name} {col_type}")
@@ -347,22 +355,86 @@ class Database:
 
             conn.commit()
 
-    def add_competitor(self, owner_asin: str, competitor_asin: str, group_type: str = "direct", source: str = "manual", verified: int = 1, notes: str = "", similarity_score: float = 1.0) -> bool:
+    def add_competitor(
+        self,
+        owner_asin: str,
+        competitor_asin: str,
+        group_type: str = "direct",
+        source: str = "manual",
+        verified: int = 1,
+        notes: str = "",
+        similarity_score: float = 1.0,
+        parent_asin: Optional[str] = None,
+        variation_family_id: Optional[str] = None,
+        metric_scope: str = "child_asin",
+        why_competitor: Optional[str] = None,
+        relative_summary: Optional[str] = None,
+        executive_conclusion: Optional[str] = None,
+        credibility_badge: str = "🟡 卖家精灵预估月销量 (第三方估算)",
+        status: str = "active"
+    ) -> bool:
         now_iso = datetime.now(timezone.utc).isoformat()
         with self.get_connection() as conn:
             conn.execute("""
-                INSERT INTO competitor_sets (owner_asin, competitor_asin, group_type, source, verified, verified_at, notes, similarity_score, active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                INSERT INTO competitor_sets (
+                    owner_asin, competitor_asin, group_type, source, verified, verified_at,
+                    notes, similarity_score, parent_asin, variation_family_id, metric_scope,
+                    why_competitor, relative_summary, executive_conclusion, credibility_badge,
+                    status, active
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 ON CONFLICT(owner_asin, competitor_asin, group_type) DO UPDATE SET
                     source = excluded.source,
                     verified = excluded.verified,
                     verified_at = excluded.verified_at,
                     notes = excluded.notes,
                     similarity_score = excluded.similarity_score,
+                    parent_asin = COALESCE(excluded.parent_asin, competitor_sets.parent_asin),
+                    variation_family_id = COALESCE(excluded.variation_family_id, competitor_sets.variation_family_id),
+                    metric_scope = COALESCE(excluded.metric_scope, competitor_sets.metric_scope),
+                    why_competitor = COALESCE(excluded.why_competitor, competitor_sets.why_competitor),
+                    relative_summary = COALESCE(excluded.relative_summary, competitor_sets.relative_summary),
+                    executive_conclusion = COALESCE(excluded.executive_conclusion, competitor_sets.executive_conclusion),
+                    credibility_badge = COALESCE(excluded.credibility_badge, competitor_sets.credibility_badge),
+                    status = excluded.status,
                     active = 1
-            """, (owner_asin, competitor_asin, group_type, source, verified, now_iso if verified else None, notes, similarity_score))
+            """, (
+                owner_asin, competitor_asin, group_type, source, verified,
+                now_iso if verified else None, notes, similarity_score,
+                parent_asin, variation_family_id, metric_scope, why_competitor,
+                relative_summary, executive_conclusion, credibility_badge, status
+            ))
             conn.commit()
             return True
+
+    def ignore_competitor(self, owner_asin: str, competitor_asin: str) -> bool:
+        """Silences/ignores a candidate competitor persistently for this owner SKU."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self.get_connection() as conn:
+            # Check if exists
+            c = conn.cursor()
+            c.execute("SELECT id, group_type FROM competitor_sets WHERE owner_asin = ? AND competitor_asin = ?", (owner_asin, competitor_asin))
+            rows = c.fetchall()
+            if rows:
+                conn.execute("""
+                    UPDATE competitor_sets 
+                    SET status = 'ignored', active = 0, last_synced_at = ?
+                    WHERE owner_asin = ? AND competitor_asin = ?
+                """, (now_iso, owner_asin, competitor_asin))
+            else:
+                conn.execute("""
+                    INSERT INTO competitor_sets (owner_asin, competitor_asin, group_type, source, status, active, created_at)
+                    VALUES (?, ?, 'suggested', 'ignore_action', 'ignored', 0, ?)
+                """, (owner_asin, competitor_asin, now_iso))
+            conn.commit()
+            return True
+
+    def get_ignored_competitor_asins(self, owner_asin: str) -> set:
+        """Returns set of competitor ASINs ignored by owner."""
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT competitor_asin FROM competitor_sets WHERE owner_asin = ? AND status = 'ignored'", (owner_asin,))
+            return {r["competitor_asin"] for r in c.fetchall()}
 
     def remove_competitor(self, owner_asin: str, competitor_asin: str, group_type: str = "direct") -> bool:
         with self.get_connection() as conn:
@@ -378,9 +450,81 @@ class Database:
             c = conn.cursor()
             c.execute("""
                 SELECT * FROM competitor_sets 
-                WHERE owner_asin = ? AND verified = 1 AND active = 1
+                WHERE owner_asin = ? AND verified = 1 AND active = 1 AND (status IS NULL OR status != 'ignored')
                 ORDER BY created_at DESC
             """, (owner_asin,))
+            return [dict(r) for r in c.fetchall()]
+
+    def get_sku_real_history(self, asin: str, days: int = 90) -> Dict[str, Any]:
+        """Queries real time series history for a single ASIN from local warehouse."""
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("""
+                SELECT snapshot_date as date, price, estimated_units as units, bsr, rating, reviews, source, fetched_at
+                FROM asin_snapshots
+                WHERE asin = ?
+                ORDER BY snapshot_date ASC
+            """, (asin,))
+            snapshots = [dict(r) for r in c.fetchall()]
+
+            c.execute("""
+                SELECT snapshot_date as date, price, source, fetched_at
+                FROM asin_price_history
+                WHERE asin = ?
+                ORDER BY snapshot_date ASC
+            """, (asin,))
+            price_points = [dict(r) for r in c.fetchall()]
+
+            c.execute("""
+                SELECT snapshot_date as date, bsr, source, fetched_at
+                FROM asin_bsr_history
+                WHERE asin = ?
+                ORDER BY snapshot_date ASC
+            """, (asin,))
+            bsr_points = [dict(r) for r in c.fetchall()]
+
+            c.execute("""
+                SELECT snapshot_date as date, units, revenue, source, fetched_at
+                FROM asin_sales_history
+                WHERE asin = ?
+                ORDER BY snapshot_date ASC
+            """, (asin,))
+            sales_points = [dict(r) for r in c.fetchall()]
+
+            # Determine distinct historical days recorded
+            all_dates = set()
+            for s in snapshots:
+                all_dates.add(s["date"])
+            for p in price_points:
+                all_dates.add(p["date"])
+            for b in bsr_points:
+                all_dates.add(b["date"])
+            for sl in sales_points:
+                all_dates.add(sl["date"])
+
+            distinct_days = len(all_dates)
+            has_sufficient = distinct_days >= 30
+
+            return {
+                "asin": asin,
+                "historyDays": distinct_days,
+                "hasSufficientHistory": has_sufficient,
+                "snapshots": snapshots,
+                "pricePoints": price_points,
+                "bsrPoints": bsr_points,
+                "salesPoints": sales_points
+            }
+
+    def get_market_real_history(self, node_id_path: str, months: int = 12) -> List[Dict[str, Any]]:
+        """Queries real market snapshots from local warehouse."""
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("""
+                SELECT snapshot_date as month, units, revenue, avg_price as avgPrice, products, sellers, cr4, source
+                FROM market_snapshots
+                WHERE node_id_path = ?
+                ORDER BY snapshot_date ASC
+            """, (node_id_path,))
             return [dict(r) for r in c.fetchall()]
 
     def archive_raw_response(self, tool_name: str, request_json: str, response_json: str, entity_type: Optional[str] = None, entity_id: Optional[str] = None, verification_status: str = "verified") -> int:
@@ -483,11 +627,11 @@ class Database:
             core_count = c.fetchone()["cnt"]
 
             # 2. Active confirmed direct competitors
-            c.execute("SELECT COUNT(DISTINCT competitor_asin) as cnt FROM competitor_sets WHERE group_type = 'direct' AND verified = 1 AND active = 1")
+            c.execute("SELECT COUNT(DISTINCT competitor_asin) as cnt FROM competitor_sets WHERE group_type = 'direct' AND verified = 1 AND active = 1 AND (status IS NULL OR status != 'ignored')")
             direct_count = c.fetchone()["cnt"]
 
             # 3. Active benchmark competitors
-            c.execute("SELECT COUNT(DISTINCT competitor_asin) as cnt FROM competitor_sets WHERE group_type = 'benchmark' AND active = 1")
+            c.execute("SELECT COUNT(DISTINCT competitor_asin) as cnt FROM competitor_sets WHERE group_type = 'benchmark' AND active = 1 AND (status IS NULL OR status != 'ignored')")
             bench_count = c.fetchone()["cnt"]
 
             # 4. Monitored market category nodes

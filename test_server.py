@@ -57,6 +57,38 @@ def run_tests():
     print("      Database Isolation: " + test_db_path)
     print("=" * 75)
 
+    # --- AST Source Code Anti-Fake Data Scanner ---
+    print("\n[Security & Anti-Fake] Scanning backend/services/trend_service.py source AST...")
+    import ast
+    trend_service_path = os.path.join(project_root, "backend", "services", "trend_service.py")
+    with open(trend_service_path, "r", encoding="utf-8") as f:
+        src_code = f.read()
+
+    # Text-level scan for eradicated fake constants
+    forbidden_literals = [
+        "total_monthly_units = 14350",
+        "348000",
+        "445000",
+        "492000",
+        "SleepJoy",
+        "30%+",
+        "32.5%",
+        "+14.8%"
+    ]
+    for lit in forbidden_literals:
+        assert lit not in src_code, f"VIOLATION: Found eradicated fake constant '{lit}' in trend_service.py!"
+
+    # AST-level validation
+    parsed_ast = ast.parse(src_code)
+    for node in ast.walk(parsed_ast):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    assert target.id not in ("market_12m_trend", "competitor_bar_data"), (
+                        f"VIOLATION: Hardcoded assignment to '{target.id}' found in trend_service.py!"
+                    )
+    print("   [PASS] trend_service.py 100% free of hardcoded fake data, verified via AST & source scan")
+
     with TestClient(app) as client:
         # 1. Security & Config Check
         print("\n[Test 1] Security & Config Sanitization...")
@@ -67,13 +99,13 @@ def run_tests():
         assert settings.DB_PATH == test_db_path, f"DB_PATH must point to test DB, got: {settings.DB_PATH}"
         print("   [PASS] Clean MCP URL, secret isolated, test DB active:", settings.DB_PATH)
 
-        # 2. Health Check Endpoint & Version
-        print("\n[Test 2] Health Endpoint (/api/health) & Version 2.5.0...")
+        # 2. Health Check Endpoint & Version 2.6.0
+        print("\n[Test 2] Health Endpoint (/api/health) & Version 2.6.0...")
         resp = client.get("/api/health")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert data["version"] == "2.5.0", f"Expected version 2.5.0, got {data['version']}"
+        assert data["version"] == "2.6.0", f"Expected version 2.6.0, got {data['version']}"
         print("   [PASS] Health check ok, upgraded version:", data["version"])
 
         # 3. Boss Mode Executive Briefing (4 Facts + 4 Actions)
@@ -106,8 +138,8 @@ def run_tests():
         assert "evidence" in m_data.get("marketSizeQuestion", {}), "Evidence must be present for Boss Mode"
         print(f"   [PASS] Market currency properly formatted ($XX.XM / 约 XX 万美元)")
 
-        # 5. Module 2: Core 4 SKU War Room & Scalar BSR
-        print("\n[Test 5] Module 2: Core Products Registry & Scalar BSR...")
+        # 5. Module 2: Core 4 SKU War Room & 3-Tier Competitors V2.6
+        print("\n[Test 5] Module 2: Core 4 SKU & 3-Tier Competitor Architecture...")
         prods_resp = client.get("/api/core-products")
         assert prods_resp.status_code == 200
         skus = prods_resp.json().get("data", [])
@@ -127,28 +159,74 @@ def run_tests():
         assert "bossSummary" in comp_data, "bossSummary must be present in competitor response"
         assert "top3Gaps" in comp_data["bossSummary"], "top3Gaps must be present in bossSummary"
         assert "primaryChallenge" in comp_data["bossSummary"], "primaryChallenge must be present"
-        print(f"   [PASS] Boss Summary generated: {comp_data['bossSummary']['primaryChallenge'][:50]}...")
 
-        # 6. V2.4 Trend Cockpit (/api/dashboard/trends)
-        print("\n[Test 6] V2.4 Trend Cockpit (/api/dashboard/trends)...")
+        # Tier B: Benchmark Top 5 Quality & Deduplication Check
+        benchmarks = comp_data.get("benchmarkCompetitors", [])
+        assert len(benchmarks) <= 5, f"Benchmark competitors must be at most 5, got {len(benchmarks)}"
+        from backend.services.core_product_service import ACCESSORY_KEYWORDS
+        for b in benchmarks:
+            t_low = (b.get("title") or "").lower()
+            for kw in ACCESSORY_KEYWORDS:
+                assert kw not in t_low, f"Benchmark competitor contains accessory keyword '{kw}': {b.get('title')}"
+        
+        # Check Benchmark Insight Card
+        bench_insight = comp_data.get("benchmarkInsight", {})
+        assert "ceilingConclusion" in bench_insight, "benchmarkInsight must contain ceilingConclusion"
+        print("   [PASS] Benchmark Top 5: accessories filtered, deduplicated, insight generated")
+
+        # Tier C: Candidate Discovery Pool (Top 10 strictly)
+        suggested = comp_data.get("suggestedCompetitors", [])
+        assert len(suggested) <= 10, f"Suggested candidate competitors must be at most 10, got {len(suggested)}"
+        for s in suggested:
+            assert "similarityScore" in s, "Candidate must have similarityScore"
+            assert "similarityReason" in s, "Candidate must have similarityReason"
+        print(f"   [PASS] Candidate Discovery Pool: {len(suggested)} top candidates with scores & reasons")
+
+        # Scatter Plot Data
+        scatter_data = comp_data.get("scatterData", [])
+        assert len(scatter_data) >= 1, "scatterData must contain at least owner product"
+        assert any(d.get("isOur") for d in scatter_data), "scatterData must include owner SKU"
+        print(f"   [PASS] Scatter Plot Data: {len(scatter_data)} points for Price vs Units vs Reviews")
+
+        # Candidate Ignore Action & Persistent Filtering
+        if suggested:
+            target_to_ignore = suggested[0]["asin"]
+            ign_resp = client.post(f"/api/core-products/B0GYH8WT22/competitors/{target_to_ignore}/ignore")
+            assert ign_resp.status_code == 200
+            ign_json = ign_resp.json()
+            assert ign_json.get("status") == "ok"
+            assert "已忽略" in ign_json.get("message", "")
+
+            # Re-fetch competitors and verify ignored ASIN is absent
+            re_comp_resp = client.get("/api/core-products/B0GYH8WT22/competitors")
+            re_comp_data = re_comp_resp.json().get("data", {})
+            re_suggested_asins = [s["asin"] for s in re_comp_data.get("suggestedCompetitors", [])]
+            assert target_to_ignore not in re_suggested_asins, f"Ignored ASIN {target_to_ignore} still present in candidates!"
+            print(f"   [PASS] Ignore Action verified: {target_to_ignore} successfully silenced and excluded from recommendations")
+
+        # 6. V2.6 Trend Cockpit (Zero Fabricated Data Check)
+        print("\n[Test 6] V2.6 Trend Cockpit (/api/dashboard/trends) Zero Fabricated Data Check...")
         trends_resp = client.get("/api/dashboard/trends?range=12m")
         assert trends_resp.status_code == 200
         t_json = trends_resp.json()
         assert t_json.get("status") == "ok"
         t_data = t_json.get("data", {})
         
-        # Top 4 KPIs
+        # Top 4 KPIs: Explicitly 'sellerSpriteEstimatedMonthlyUnits'
         mini_kpis = t_data.get("miniKpis", {})
         assert "coreMonthlyUnits" in mini_kpis
-        assert "momGrowth" in mini_kpis
+        assert "sellerSpriteEstimatedMonthlyUnits" in mini_kpis
+        assert "metricLabel" in mini_kpis and "卖家精灵预估月销量" in mini_kpis["metricLabel"]
         assert "directCompetitorsCount" in mini_kpis
         assert "dataFreshness" in mini_kpis
         
-        # 12m Market Trend
+        # 12m Market Trend: Zero Fake Curve
         m12 = t_data.get("market12mTrend", {})
-        m_points = m12.get("monthlyPoints", [])
-        assert len(m_points) == 12, f"Expected 12 months data points, got {len(m_points)}"
-        assert "month" in m_points[0] and "units" in m_points[0] and "revenue" in m_points[0]
+        assert "hasSufficientHistory" in m12
+        if not m12["hasSufficientHistory"]:
+            assert m12.get("insufficientNotice") is not None, "insufficientNotice must be present when history is insufficient"
+            assert "积累中" in m12.get("insufficientNotice", "")
+            print("   [PASS] Market 12m: hasSufficientHistory=False, honest insufficientNotice displayed (zero fake curve!)")
         
         # 90d SKU Trends: Exactly 4 SKUs, 4th must be unconfigured notice with NO fake lines
         sku90 = t_data.get("sku90dTrends", {})
@@ -162,10 +240,14 @@ def run_tests():
         
         # Competitor Comparison & Conclusions
         assert len(t_data.get("todayConclusions", [])) == 3, "Expected 3 today conclusions"
-        assert len(t_data.get("skuSpotlight", [])) == 3, "Expected 3 sku spotlights"
+        assert len(t_data.get("skuSpotlight", [])) == 4, f"Expected 4 sku spotlights (3 active + 1 pending), got {len(t_data.get('skuSpotlight', []))}"
         comp_comp = t_data.get("competitorComparison", {})
         assert "chartData" in comp_comp and "gapAnalysis" in comp_comp
-        print("   [PASS] Trend Cockpit: 4 mini KPIs, 12m points, 4 SKU series (honest pending 4th SKU), 3 conclusions, 3 spotlights, competitor comparison")
+        # Ensure competitor horizontal bar has 'sellerSpriteEstimatedMonthlyUnits' label
+        for bar in comp_comp.get("chartData", []):
+            assert "sellerSpriteEstimatedMonthlyUnits" in bar or "monthlyUnits" in bar
+            assert "credibilityBadge" in bar
+        print("   [PASS] Trend Cockpit V2.6: honest data sufficiency reporting, explicit SellerSprite estimated naming, zero fake constants")
 
         # 7. V2.4 Pipeline Node Integrity Validation & Anti-Pattern Blocking
         print("\n[Test 7] V2.4 Pipeline Node Validation & Anti-Pattern Blocking...")

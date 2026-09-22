@@ -137,23 +137,26 @@
         <!-- 顶部 1 行 4 小指标卡片 -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="exec-card p-4">
-            <div class="text-[11px] text-slate-400 font-medium">核心款合计月销</div>
+            <div class="text-[11px] text-slate-400 font-medium flex items-center justify-between">
+              <span>核心款卖家精灵预估月销</span>
+              <span class="text-[9px] text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">🟡 第三方估算</span>
+            </div>
             <div id="cockpitCoreUnits" class="text-xl font-black text-slate-900 mt-1 font-mono">--</div>
             <div class="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-              <span>主力 3 款健康在售</span>
+              <span>主力 3 款健康在售 (第4款待配置)</span>
             </div>
           </div>
 
           <div class="exec-card p-4">
             <div class="text-[11px] text-slate-400 font-medium">30 天销量走势</div>
             <div id="cockpitMomGrowth" class="text-xl font-black text-emerald-600 mt-1 font-mono">--</div>
-            <div class="text-[10px] text-slate-500 mt-1">环比上月跑赢大盘</div>
+            <div id="cockpitMomGrowthNotice" class="text-[10px] text-slate-500 mt-1">从今日开始积累真实点位</div>
           </div>
 
           <div class="exec-card p-4">
             <div class="text-[11px] text-slate-400 font-medium">已纳管直接竞品</div>
             <div id="cockpitDirectComps" class="text-xl font-black text-blue-600 mt-1 font-mono">--</div>
-            <div class="text-[10px] text-slate-500 mt-1">头部 Derila 等对标款</div>
+            <div class="text-[10px] text-slate-500 mt-1">已确认直接对标款</div>
           </div>
 
           <div class="exec-card p-4">
@@ -170,8 +173,8 @@
             <div>
               <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
-                  <h3 class="text-sm font-bold text-slate-900">记忆棉枕大盘过去 12 个月趋势走势</h3>
-                  <p class="text-xs text-slate-400 mt-0.5">Neck & Cervical Pillows 细分大盘真实月度时序，可切销量与销额</p>
+                  <h3 class="text-sm font-bold text-slate-900">记忆棉枕大盘走势追踪</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">Neck & Cervical Pillows 细分大盘真实时序，坚守零伪造原则</p>
                 </div>
                 <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
                   <button id="btnMarketUnits" class="px-2.5 py-1 rounded bg-blue-600 text-white text-xs font-semibold shadow-sm transition">按月销量 (件)</button>
@@ -181,7 +184,7 @@
               <div id="marketTrendChart" style="height: 240px; width: 100%;" class="mt-2"></div>
             </div>
             <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>大盘当前容量: <b class="text-slate-800">37.3 万件/月</b></span>
+              <span>大盘当前容量: <b id="cockpitMarketVolume" class="text-slate-800">真实数据沉淀中</b></span>
               <button onclick="App.navigateTo('market')" class="text-blue-600 font-semibold hover:underline">查看细分市场深度 ➔</button>
             </div>
           </div>
@@ -217,7 +220,7 @@
                   <p class="text-xs text-slate-400 mt-0.5">多维度对比我方主力款表现；第 4 款未配置仅提示，不画假线</p>
                 </div>
                 <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
-                  <button id="btnSkuUnits" class="px-2.5 py-1 rounded bg-blue-600 text-white text-xs font-semibold shadow-sm transition">月销量</button>
+                  <button id="btnSkuUnits" class="px-2.5 py-1 rounded bg-blue-600 text-white text-xs font-semibold shadow-sm transition">卖家精灵预估月销</button>
                   <button id="btnSkuBsr" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition">大类 BSR</button>
                   <button id="btnSkuPrice" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition">标价 ($)</button>
                 </div>
@@ -250,17 +253,17 @@
           </div>
         </div>
 
-        <!-- 第三行：我们 vs 5 大直接竞品月销横向对比 (65%) + 差距与中位对比分析 (35%) -->
+        <!-- 第三行：我们 vs 核心直接竞品月销横向对比 (65%) + 差距与中位对比分析 (35%) -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <!-- 65% 水平柱状图 -->
           <div class="lg:col-span-8 exec-card p-5 flex flex-col justify-between">
             <div>
               <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
-                  <h3 class="text-sm font-bold text-slate-900">我们 vs 5 大直接竞品月销对比 (横向条形图)</h3>
-                  <p class="text-xs text-slate-400 mt-0.5">直观呈现我方核心款与类目头部标杆 (Derila 等) 的出单体量差距</p>
+                  <h3 class="text-sm font-bold text-slate-900">我们 vs 核心直接竞品预估月销对比 (横向条形图)</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">口径：卖家精灵预估月销量 · 仅展示已确认直接对标款</p>
                 </div>
-                <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">蓝色: 我方 | 灰色: 竞品</span>
+                <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">蓝色: 我方 | 灰色: 直接竞品</span>
               </div>
               <div id="competitorBarChart" style="height: 220px; width: 100%;" class="mt-2"></div>
             </div>
@@ -271,26 +274,26 @@
             <div>
               <div class="pb-3 border-b border-slate-100 flex items-center justify-between">
                 <h3 class="text-sm font-bold text-slate-900">核心指标差距分析</h3>
-                <span class="text-[10px] text-slate-400">对标中位数</span>
+                <span class="text-[10px] text-slate-400">对标直接竞品中位数</span>
               </div>
 
               <div class="space-y-3 mt-3">
                 <div class="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
-                  <div class="text-[10px] text-slate-400">旗舰款 vs 竞品销量中位差</div>
+                  <div class="text-[10px] text-slate-400">旗舰款 vs 直接竞品月销中位差</div>
                   <div id="gapMedianUnits" class="text-base font-black text-slate-900 font-mono mt-0.5">--</div>
-                  <div class="text-[10px] text-slate-500 mt-0.5">我方旗舰款 7,120 件 vs 竞品中位数 8,400 件</div>
+                  <div id="gapUnitsSubtext" class="text-[10px] text-slate-500 mt-0.5">正在计算对标差距...</div>
                 </div>
 
                 <div class="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
-                  <div class="text-[10px] text-slate-400">定价相对优势</div>
+                  <div class="text-[10px] text-slate-400">标价相对差异</div>
                   <div id="gapMedianPrice" class="text-base font-black text-emerald-600 font-mono mt-0.5">--</div>
-                  <div class="text-[10px] text-slate-500 mt-0.5">我方定价 $45.99 vs 竞品中位 $43.99，处于健康溢价带</div>
+                  <div id="gapPriceSubtext" class="text-[10px] text-slate-500 mt-0.5">正在计算对标价格差...</div>
                 </div>
 
                 <div class="p-3 bg-blue-50/60 rounded-lg border border-blue-200 text-xs">
-                  <span class="font-bold text-blue-950 block mb-0.5">📊 评论积累建议：</span>
+                  <span class="font-bold text-blue-950 block mb-0.5">📊 决策与评价建议：</span>
                   <p id="gapReviewSummary" class="text-slate-700 text-[11px] leading-relaxed">
-                    直接竞品 Review 中位数约 7,600 条，我方主力款为 1,820 条，主要差距在存量评论沉淀，需严格把控退货率以促进自然留评。
+                    正在根据直接竞品数据测算...
                   </p>
                 </div>
               </div>
@@ -578,12 +581,12 @@
             </div>
           </div>
 
-          <!-- 老板模式首屏：我们 vs 5大直接竞品 + 3大主要差距 -->
+          <!-- 老板模式首屏：我们 vs 直接竞品 + 3大主要差距 + 双图对标 -->
           <div id="bossCompetitorCard" class="p-5 rounded-xl bg-gradient-to-r from-blue-50/80 via-slate-50 to-indigo-50/60 border border-blue-200 text-xs shadow-sm space-y-3.5">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="text-base">⚔️</span>
-                <span class="font-bold text-sm text-slate-900">我们 vs 直接竞品核心差距 (老板 10 秒摘要)</span>
+                <span class="font-bold text-sm text-slate-900">我们 vs 核心直接竞品差距 (老板 10 秒摘要)</span>
               </div>
               <span id="bossCompStatusBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">已对标 0 款直接竞品</span>
             </div>
@@ -608,6 +611,24 @@
               </div>
             </div>
 
+            <!-- 老板直接竞品双图联动：条形图 + 价格/月销散点气泡图 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3 pt-3 border-t border-blue-100">
+              <div class="bg-white p-3 rounded-lg border border-slate-200">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-bold text-slate-800">图 1 · 卖家精灵预估月销量横向对比</span>
+                  <span class="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">我方 vs 核心直接竞品</span>
+                </div>
+                <div id="chartCompetitorHorizontalBar" style="height: 220px; width: 100%;"></div>
+              </div>
+              <div class="bg-white p-3 rounded-lg border border-slate-200">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-bold text-slate-800">图 2 · 价格 vs 卖家精灵预估月销分布</span>
+                  <span class="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">气泡大小: Review 壁垒</span>
+                </div>
+                <div id="chartCompetitorScatter" style="height: 220px; width: 100%;"></div>
+              </div>
+            </div>
+
             <!-- 经营与运营建议 -->
             <div class="pt-2 border-t border-blue-100 flex items-start gap-2">
               <span class="font-bold text-blue-800 flex-shrink-0">建议直接行动：</span>
@@ -620,7 +641,7 @@
             <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
               <div>
                 <h3 class="text-sm font-bold text-slate-900">竞品对照战情池 (分层精细化对标)</h3>
-                <p class="text-xs text-slate-400 mt-0.5">区分同款直接竞品、系统建议竞品、类目标杆与 TOP100 参照池</p>
+                <p class="text-xs text-slate-400 mt-0.5">区分同款直接竞品、发现候选竞品、头部标杆与全品类参照池</p>
               </div>
 
               <!-- 竞品操作与分类切换 -->
@@ -630,10 +651,10 @@
                     🎯 直接竞品 (<span id="badgeDirectCount">0</span>)
                   </button>
                   <button onclick="ProductsView.switchCompetitorPool('suggested')" id="btnPool-suggested" class="comp-pool-btn px-2.5 py-1 rounded text-xs font-medium text-slate-600 hover:text-slate-900 transition">
-                    💡 建议竞品 (<span id="badgeSuggestedCount">0</span>)
+                    💡 发现候选竞品 (<span id="badgeSuggestedCount">0</span>)
                   </button>
                   <button onclick="ProductsView.switchCompetitorPool('benchmark')" id="btnPool-benchmark" class="comp-pool-btn px-2.5 py-1 rounded text-xs font-medium text-slate-600 hover:text-slate-900 transition">
-                    🏆 类目标杆 (Top 5)
+                    🏆 头部标杆 (<span id="badgeBenchmarkCount">5</span>)
                   </button>
                   <button onclick="ProductsView.switchCompetitorPool('top100')" id="btnPool-top100" class="comp-pool-btn px-2.5 py-1 rounded text-xs font-medium text-slate-600 hover:text-slate-900 transition">
                     📊 类目大池 (<span id="badgeTopCount">100</span>)
@@ -646,6 +667,11 @@
               </div>
             </div>
 
+            <!-- 头部标杆告诉我们什么？固定洞察卡片 -->
+            <div id="benchmarkInsightCard" class="hidden my-3 p-4 rounded-xl bg-gradient-to-r from-amber-50/80 to-orange-50/60 border border-amber-200 text-xs shadow-xs">
+              <!-- Injected by products.js -->
+            </div>
+
             <!-- 直接竞品为空时的显著引导卡片 -->
             <div id="directCompEmptyNotice" class="hidden my-4 p-5 rounded-xl bg-amber-50/60 border border-amber-200 text-amber-900 text-xs space-y-2">
               <div class="flex items-center gap-2 font-bold text-sm text-amber-800">
@@ -654,11 +680,11 @@
               </div>
               <p class="text-amber-700 leading-relaxed">
                 系统已根据颈椎枕品类与形态，在类目大池中为您发掘了 <span id="emptySuggestedCount" class="font-bold font-mono">--</span> 款形态或价格相近的可能竞品。
-                您可以点击“查看系统建议竞品”挑选确认，或者直接手工输入竞品 ASIN 加入每日快照监控池。
+                您可以点击“发现候选竞品”挑选确认，或者直接手工输入竞品 ASIN 加入每日快照监控池。
               </p>
               <div class="flex items-center gap-3 pt-1">
                 <button onclick="ProductsView.switchCompetitorPool('suggested')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold shadow-sm transition">
-                  浏览系统建议竞品 ➔
+                  查看候选竞品 ➔
                 </button>
                 <button onclick="ProductsView.openAddCompetitorModal()" class="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 rounded text-xs font-semibold shadow-sm transition">
                   + 手工输入竞品 ASIN
@@ -674,9 +700,9 @@
                     <th class="py-2.5 px-3">竞品信息</th>
                     <th class="py-2.5 px-3">标价</th>
                     <th class="py-2.5 px-3">大类 BSR</th>
-                    <th class="py-2.5 px-3">月估销量</th>
-                    <th class="py-2.5 px-3">评分/评价数</th>
-                    <th class="py-2.5 px-3">与我方差距 / 运营启发 (Gap Analysis)</th>
+                    <th class="py-2.5 px-3" title="数据源: 卖家精灵第三方预估月度销量">卖家精灵预估月销量 ⓘ</th>
+                    <th class="py-2.5 px-3">买家评分 / Review</th>
+                    <th class="py-2.5 px-3">为什么是竞品 / 相对差距与启示</th>
                     <th class="py-2.5 px-3 text-right">操作</th>
                   </tr>
                 </thead>

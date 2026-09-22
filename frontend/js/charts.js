@@ -387,10 +387,18 @@ const Charts = {
   renderMarket12mTrend(domId, monthlyPoints, metric = "units") {
     const chart = this.getInstance(domId);
     if (!chart) return;
-    if (!monthlyPoints || monthlyPoints.length === 0) {
+    if (!monthlyPoints || monthlyPoints.length === 0 || monthlyPoints.length < 6) {
       chart.clear();
+      const pointsCount = (monthlyPoints || []).length;
       chart.setOption({
-        title: { text: "历史数据积累中 (暂无完整12个月时序)", left: "center", top: "center", textStyle: { color: "#94a3b8", fontSize: 13 } }
+        title: {
+          text: pointsCount === 0 ? "大盘历史数据积累中 (系统严禁虚构 12 个月假线)" : `大盘历史数据积累中 (已记录 ${pointsCount} 个时点，满6个月出完整线)`,
+          subtext: "本地仓库每日 08:30 定时抓取，真实沉淀，拒绝伪造",
+          left: "center",
+          top: "center",
+          textStyle: { color: "#475569", fontSize: 12, fontWeight: "bold" },
+          subtextStyle: { color: "#94a3b8", fontSize: 11 }
+        }
       });
       return;
     }
@@ -398,7 +406,7 @@ const Charts = {
     const months = monthlyPoints.map(p => p.month);
     const isUnits = metric === "units";
     const dataValues = monthlyPoints.map(p => isUnits ? p.units : p.revenue);
-    const metricName = isUnits ? "大盘月销量 (件)" : "大盘销售额 ($)";
+    const metricName = isUnits ? "大盘预估月销量 (件)" : "大盘销售额 ($)";
     const color = isUnits ? "#2563eb" : "#059669";
     const areaColor = isUnits ? "rgba(37, 99, 235, 0.12)" : "rgba(5, 150, 105, 0.12)";
 
@@ -411,7 +419,7 @@ const Charts = {
           const valStr = isUnits ? `${pt.value.toLocaleString()} 件` : `$${pt.value.toLocaleString()}`;
           return `<div class="font-bold text-xs text-slate-800">${pt.name}</div>
                   <div class="text-xs text-slate-600 mt-1">${metricName}: <span class="font-bold text-blue-600">${valStr}</span></div>
-                  <div class="text-[11px] text-slate-400 mt-0.5">均价: $${raw.avgPrice?.toFixed(1) || '--'}</div>`;
+                  <div class="text-[11px] text-slate-400 mt-0.5">口径: 卖家精灵第三方估算 | 均价: $${raw.avgPrice?.toFixed(1) || '--'}</div>`;
         }
       },
       grid: { left: "3%", right: "3%", bottom: "6%", top: "12%", containLabel: true },
@@ -423,7 +431,7 @@ const Charts = {
       },
       yAxis: {
         type: "value",
-        name: isUnits ? "月销量 (件)" : "月销售额 ($)",
+        name: isUnits ? "预估月销量 (件)" : "月销售额 ($)",
         nameTextStyle: { color: "#64748b", fontSize: 11 },
         splitLine: { lineStyle: { color: "#f1f5f9", type: "dashed" } },
         axisLabel: {
@@ -447,7 +455,7 @@ const Charts = {
           },
           markPoint: {
             data: [
-              { type: "max", name: "旺季峰值" }
+              { type: "max", name: "峰值" }
             ],
             label: { fontSize: 10 }
           }
@@ -462,7 +470,14 @@ const Charts = {
     if (!skuTrendData || !skuTrendData.dates || skuTrendData.dates.length === 0) {
       chart.clear();
       chart.setOption({
-        title: { text: "时序数据积累中...", left: "center", top: "center", textStyle: { color: "#94a3b8", fontSize: 13 } }
+        title: {
+          text: "4 核心 SKU 90 天时序积累中 (系统坚守零伪造原则)",
+          subtext: "从今日开始每日定时沉淀，不生成平滑虚假曲线",
+          left: "center",
+          top: "center",
+          textStyle: { color: "#475569", fontSize: 12, fontWeight: "bold" },
+          subtextStyle: { color: "#94a3b8", fontSize: 11 }
+        }
       });
       return;
     }
@@ -507,7 +522,7 @@ const Charts = {
       },
       yAxis: {
         type: "value",
-        name: metric === "units" ? "月销量 (件)" : (metric === "price" ? "标价 ($)" : "大类 BSR 排名"),
+        name: metric === "units" ? "卖家精灵预估月销量 (件)" : (metric === "price" ? "标价 ($)" : "大类 BSR 排名"),
         inverse: isBsr,
         splitLine: { lineStyle: { color: "#f1f5f9", type: "dashed" } },
         axisLabel: {
@@ -525,15 +540,22 @@ const Charts = {
     if (!compList || compList.length === 0) {
       chart.clear();
       chart.setOption({
-        title: { text: "暂无直接竞品对标数据", left: "center", top: "center", textStyle: { color: "#94a3b8", fontSize: 13 } }
+        title: {
+          text: "尚未建立已确认直接竞品池",
+          subtext: "请前往 4 SKU 战情室从候选池添加 3-5 款核心对标竞品",
+          left: "center",
+          top: "center",
+          textStyle: { color: "#475569", fontSize: 12, fontWeight: "bold" },
+          subtextStyle: { color: "#94a3b8", fontSize: 11 }
+        }
       });
       return;
     }
 
     // Sort ascending so highest appears on top
-    const sorted = [...compList].sort((a, b) => a.monthlyUnits - b.monthlyUnits);
+    const sorted = [...compList].sort((a, b) => (a.monthlyUnits || 0) - (b.monthlyUnits || 0));
     const names = sorted.map(c => c.brand || c.asin);
-    const units = sorted.map(c => c.monthlyUnits);
+    const units = sorted.map(c => c.monthlyUnits || 0);
 
     chart.setOption({
       tooltip: {
@@ -542,17 +564,19 @@ const Charts = {
         formatter: (params) => {
           const pt = params[0];
           const raw = sorted[pt.dataIndex];
-          const isOur = raw.isOur ? '<span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold">我方产品</span>' : '<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px]">直接竞品</span>';
-          return `<div class="font-bold text-xs">${raw.brand} ${isOur}</div>
+          const isOur = raw.isOur ? '<span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold">我方产品</span>' : '<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px]">核心直接竞品</span>';
+          const scopeLabel = raw.metricScope === 'parent_family' ? '<span class="text-amber-600 text-[10px]"> (⚠️ 父体聚合口径)</span>' : '';
+          return `<div class="font-bold text-xs">${raw.brand} ${isOur} ${scopeLabel}</div>
                   <div class="text-xs text-slate-600 mt-1">ASIN: <span class="font-mono text-slate-800">${raw.asin}</span></div>
-                  <div class="text-xs text-slate-600 mt-0.5">月销量: <b class="text-blue-600">${raw.monthlyUnits.toLocaleString()} 件</b></div>
-                  <div class="text-xs text-slate-600 mt-0.5">定价: $${raw.price || '--'} | 评分: ${raw.rating || '--'}⭐ (${raw.reviews?.toLocaleString() || 0} reviews)</div>`;
+                  <div class="text-xs text-slate-600 mt-0.5">卖家精灵预估月销量: <b class="text-blue-600">${(raw.monthlyUnits || 0).toLocaleString()} 件</b></div>
+                  <div class="text-xs text-slate-600 mt-0.5">定价: $${raw.price || '--'} | 评分: ${raw.rating || '--'}⭐ (${(raw.reviews || 0).toLocaleString()} reviews)</div>
+                  ${raw.whyCompetitor ? `<div class="text-[10px] text-slate-500 mt-1 border-t border-slate-100 pt-1">对标原因: ${raw.whyCompetitor}</div>` : ''}`;
         }
       },
       grid: { left: "4%", right: "8%", bottom: "4%", top: "4%", containLabel: true },
       xAxis: {
         type: "value",
-        name: "月销量 (件)",
+        name: "卖家精灵预估月销量 (件)",
         splitLine: { lineStyle: { color: "#f1f5f9", type: "dashed" } },
         axisLabel: { color: "#64748b", formatter: (v) => `${(v / 1000).toFixed(0)}k` }
       },
@@ -564,7 +588,7 @@ const Charts = {
       },
       series: [
         {
-          name: "月销量",
+          name: "卖家精灵预估月销量",
           type: "bar",
           data: units.map((val, idx) => {
             const raw = sorted[idx];
@@ -583,6 +607,103 @@ const Charts = {
             formatter: (p) => `${p.value.toLocaleString()}`,
             color: "#475569",
             fontSize: 11
+          }
+        }
+      ]
+    }, true);
+  },
+
+  renderCompetitorScatter(domId, scatterData = []) {
+    const chart = this.getInstance(domId);
+    if (!chart) return;
+    if (!scatterData || scatterData.length === 0) {
+      chart.clear();
+      chart.setOption({
+        title: {
+          text: "价格 vs 预估月销量散点分布 (暂无直接竞品数据)",
+          left: "center",
+          top: "center",
+          textStyle: { color: "#94a3b8", fontSize: 12 }
+        }
+      });
+      return;
+    }
+
+    // Series 1: Our product, Series 2: Competitors
+    const ourItems = scatterData.filter(d => d.isOur && d.price && d.monthlyUnits);
+    const compItems = scatterData.filter(d => !d.isOur && d.price && d.monthlyUnits);
+
+    const formatPoint = (item) => [
+      item.price,
+      item.monthlyUnits,
+      item.reviews || 0,
+      item.asin,
+      item.brand,
+      item.rating,
+      item.title,
+      item.whyCompetitor || ""
+    ];
+
+    chart.setOption({
+      tooltip: {
+        formatter: (params) => {
+          const d = params.value;
+          return `<div class="font-sans">
+            <div class="font-bold text-xs text-slate-800">${d[4]} (${d[3]})</div>
+            <div class="text-xs text-slate-600 mt-1">标价: <b class="text-amber-600">$${d[0]}</b></div>
+            <div class="text-xs text-slate-600 mt-0.5">卖家精灵预估月销: <b class="text-blue-600">${d[1].toLocaleString()} 件</b></div>
+            <div class="text-xs text-slate-600 mt-0.5">评价数: <b class="text-slate-700">${d[2].toLocaleString()} 条</b> (${d[5] || '--'}★)</div>
+            ${d[7] ? `<div class="text-[10px] text-slate-400 mt-1 border-t border-slate-100 pt-0.5">对标原因: ${d[7]}</div>` : ''}
+          </div>`;
+        }
+      },
+      legend: {
+        data: ["我方核心款", "核心直接竞品"],
+        top: 0,
+        textStyle: { color: "#64748b", fontSize: 11 }
+      },
+      grid: { left: "4%", right: "8%", bottom: "8%", top: "16%", containLabel: true },
+      xAxis: {
+        type: "value",
+        name: "标价 ($)",
+        nameTextStyle: { color: "#d97706", fontSize: 11 },
+        splitLine: { lineStyle: { color: "#f1f5f9", type: "dashed" } },
+        axisLabel: { color: "#d97706", formatter: "${value}" }
+      },
+      yAxis: {
+        type: "value",
+        name: "预估月销 (件)",
+        nameTextStyle: { color: "#2563eb", fontSize: 11 },
+        splitLine: { lineStyle: { color: "#f1f5f9", type: "dashed" } },
+        axisLabel: { color: "#2563eb", formatter: (v) => `${(v / 1000).toFixed(0)}k` }
+      },
+      series: [
+        {
+          name: "我方核心款",
+          type: "scatter",
+          data: ourItems.map(formatPoint),
+          symbolSize: (data) => Math.max(16, Math.min(50, Math.sqrt(data[2] || 100) * 0.45)),
+          itemStyle: { color: "#2563eb", shadowBlur: 6, shadowColor: "rgba(37,99,235,0.3)" },
+          label: {
+            show: true,
+            formatter: (p) => p.value[4].split(" ")[0],
+            position: "top",
+            fontSize: 10,
+            color: "#1d4ed8"
+          }
+        },
+        {
+          name: "核心直接竞品",
+          type: "scatter",
+          data: compItems.map(formatPoint),
+          symbolSize: (data) => Math.max(14, Math.min(48, Math.sqrt(data[2] || 100) * 0.4)),
+          itemStyle: { color: "#f59e0b", shadowBlur: 4, shadowColor: "rgba(245,158,11,0.25)" },
+          label: {
+            show: true,
+            formatter: (p) => p.value[4].split(" ")[0],
+            position: "right",
+            fontSize: 10,
+            color: "#b45309"
           }
         }
       ]

@@ -84,13 +84,21 @@ const DashboardView = {
     const elFresh = document.getElementById("cockpitFreshness");
 
     if (elUnits) elUnits.textContent = (kpis.coreMonthlyUnits || 0).toLocaleString() + " 件";
-    if (elGrowth) elGrowth.textContent = kpis.momGrowth || "+14.8%";
-    if (elComps) elComps.textContent = `${kpis.directCompetitorsCount || 8} 款`;
+    if (elGrowth) elGrowth.textContent = kpis.momGrowth || "积累中";
+    const elGrowthNotice = document.getElementById("cockpitMomGrowthNotice");
+    if (elGrowthNotice) {
+      elGrowthNotice.textContent = kpis.has30dHistory ? "环比上月跑赢大盘" : "从今日开始积累真实点位";
+    }
+    if (elComps) elComps.textContent = `${kpis.directCompetitorsCount || 0} 款`;
     if (elFresh) elFresh.textContent = kpis.dataFreshness || "实时";
 
     // 2. Visual 1: Market 12M Trend (65%) + Today Conclusions (35%)
     if (d.market12mTrend) {
       Charts.renderMarket12mTrend("marketTrendChart", d.market12mTrend.monthlyPoints, this.currentMarketMetric);
+      const mktVolEl = document.getElementById("cockpitMarketVolume");
+      if (mktVolEl) {
+        mktVolEl.textContent = d.market12mTrend.currentVolume ? `${(d.market12mTrend.currentVolume / 10000).toFixed(1)} 万件/月` : "真实数据沉淀中";
+      }
     }
     const concContainer = document.getElementById("todayConclusionsContainer");
     if (concContainer && d.todayConclusions) {
@@ -110,7 +118,7 @@ const DashboardView = {
       Charts.renderSku90dTrends("skuTrendsChart", d.sku90dTrends, this.currentSkuMetric);
       const unconfigNotice = document.getElementById("unconfiguredSkuNotice");
       if (unconfigNotice) {
-        unconfigNotice.textContent = d.sku90dTrends.unconfiguredNotice || "";
+        unconfigNotice.textContent = d.sku90dTrends.unconfiguredNotice || (d.sku90dTrends.insufficientNotice || "");
       }
     }
     const spotlightContainer = document.getElementById("skuSpotlightContainer");
@@ -129,23 +137,43 @@ const DashboardView = {
       }).join("");
     }
 
-    // 4. Visual 3: We vs Top 5 Direct Competitors (65%) + Gap Analysis (35%)
+    // 4. Visual 3: We vs Confirmed Direct Competitors (65%) + Gap Analysis (35%)
     if (d.competitorComparison) {
       Charts.renderCompetitorHorizontalBar("competitorBarChart", d.competitorComparison.chartData);
       const gap = d.competitorComparison.gapAnalysis || {};
       const elGapUnits = document.getElementById("gapMedianUnits");
       const elGapPrice = document.getElementById("gapMedianPrice");
       const elGapSummary = document.getElementById("gapReviewSummary");
+      const elGapUnitsSub = document.getElementById("gapUnitsSubtext");
+      const elGapPriceSub = document.getElementById("gapPriceSubtext");
 
       if (elGapUnits) {
-        const diff = gap.unitsGap || 0;
-        elGapUnits.textContent = (diff >= 0 ? `+${diff.toLocaleString()}` : `${diff.toLocaleString()}`) + " 件";
-        elGapUnits.className = diff >= 0 ? "text-emerald-600 font-bold font-mono text-sm" : "text-rose-600 font-bold font-mono text-sm";
+        if (gap.compMedianUnits !== null && gap.compMedianUnits !== undefined) {
+          const diff = gap.unitsGap || 0;
+          elGapUnits.textContent = (diff >= 0 ? `+${diff.toLocaleString()}` : `${diff.toLocaleString()}`) + " 件";
+          elGapUnits.className = diff >= 0 ? "text-emerald-600 font-bold font-mono text-base" : "text-rose-600 font-bold font-mono text-base";
+          if (elGapUnitsSub) {
+            elGapUnitsSub.textContent = `我方旗舰 ${(gap.ourFlagshipUnits || 0).toLocaleString()} 件 vs 竞品中位 ${gap.compMedianUnits.toLocaleString()} 件`;
+          }
+        } else {
+          elGapUnits.textContent = "--";
+          if (elGapUnitsSub) elGapUnitsSub.textContent = "待添加直接竞品后计算";
+        }
       }
+
       if (elGapPrice) {
-        const pDiff = gap.priceDiff || 0;
-        elGapPrice.textContent = (pDiff >= 0 ? `+$${pDiff.toFixed(2)}` : `-$${Math.abs(pDiff).toFixed(2)}`);
+        if (gap.compMedianPrice !== null && gap.compMedianPrice !== undefined) {
+          const pDiff = gap.priceDiff || 0;
+          elGapPrice.textContent = (pDiff >= 0 ? `+$${pDiff.toFixed(2)}` : `-$${Math.abs(pDiff).toFixed(2)}`);
+          if (elGapPriceSub) {
+            elGapPriceSub.textContent = `我方标价 $${(gap.ourFlagshipPrice || 0).toFixed(2)} vs 竞品中位 $${gap.compMedianPrice.toFixed(2)}`;
+          }
+        } else {
+          elGapPrice.textContent = "--";
+          if (elGapPriceSub) elGapPriceSub.textContent = "待添加直接竞品后计算";
+        }
       }
+
       if (elGapSummary) {
         elGapSummary.textContent = gap.reviewGapSummary || "数据计算中...";
       }

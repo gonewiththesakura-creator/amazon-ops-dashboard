@@ -497,13 +497,70 @@ def generate_competitor_boss_summary(direct_competitors: List[Dict[str, Any]], o
         }
     }
 
+ACCESSORY_KEYWORDS = [
+    "cover", "pillowcase", "pillow case", "protector", "cooling case",
+    "accessories", "pillow covers", "pillow protectors", "case cover", "slipcover"
+]
+
+def is_accessory_or_non_pillow(title: str) -> bool:
+    """Checks whether a product is a pillow cover or accessory rather than an actual pillow."""
+    t_lower = (title or "").lower()
+    for kw in ACCESSORY_KEYWORDS:
+        if kw in t_lower:
+            return True
+    return False
+
+def calculate_similarity(item: Dict[str, Any], owner_price: Optional[float]) -> Dict[str, Any]:
+    """Calculates similarity score (0-100) and human-readable similarity reason for candidate discovery."""
+    title = (item.get("title") or "").lower()
+    price = item.get("price")
+    score = 40 # Baseline category membership
+
+    reasons = []
+
+    # Keyword match
+    if "cervical" in title or "contour" in title:
+        score += 20
+        reasons.append("形态同为颈椎分区轮廓枕")
+    elif "ergonomic" in title or "orthopedic" in title:
+        score += 15
+        reasons.append("同为主打人体工学护颈")
+    elif "butterfly" in title:
+        score += 15
+        reasons.append("同为蝶形护颈形态")
+
+    if "memory foam" in title:
+        score += 15
+        reasons.append("材质同为记忆棉")
+
+    # Price proximity
+    if price and owner_price:
+        diff = abs(float(price) - float(owner_price))
+        if diff <= 4.0:
+            score += 25
+            reasons.append(f"标价差仅 ${diff:.2f} (处于同核心出单带)")
+        elif diff <= 8.0:
+            score += 15
+            reasons.append(f"标价差 ${diff:.2f}")
+        elif diff <= 15.0:
+            score += 5
+            reasons.append(f"标价差 ${diff:.2f}")
+    
+    score = min(score, 98)
+    summary_reason = " · ".join(reasons) if reasons else "同品类颈椎枕潜在候选"
+
+    return {
+        "score": score,
+        "reason": summary_reason
+    }
+
 async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str, Any]:
     """Fetches and organizes competitor pools for a core SKU:
-    1. Direct Competitors (已确认直接竞品 - 人工确认)
-    2. Suggested Competitors (系统建议竞品 - AI/属性识别待确认)
-    3. Benchmark Competitors (头部标杆 - 类目前5大卖)
-    4. Top 100 Category Pool (类目参照 - 真实全量100款)
-    With plain-language gap analysis.
+    1. Direct Competitors (核心直接竞品 - 仅展示已确认，带为什么是竞品与差距分析)
+    2. Benchmark Competitors (头部标杆 Top 5 - 过滤枕套/配件，按Parent与品牌去重，带天花板洞察)
+    3. Suggested Competitors (发现候选竞品 Top 10 - 排序度最高候选，支持一键加入与忽略)
+    4. Top 100 Category Pool (全量参照池 - 仅作为统计底座)
+    5. Scatter Plot Data (价格 vs 卖家精灵预估月销量 vs 评论数)
     """
     now_iso = datetime.now(timezone.utc).isoformat()
     marketplace = marketplace.upper()
@@ -515,13 +572,15 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
     owner_units = owner_data.get("monthlyUnits")
     owner_reviews = owner_data.get("ratingsCount")
     owner_rating = owner_data.get("rating")
+    owner_title = owner_data.get("title") or "我方核心款"
+    owner_brand = owner_data.get("brand") or "ELOVNOVA"
 
-    # 2. Query confirmed direct competitors from DB
+    # 2. Query confirmed direct competitors and ignored list from DB
     confirmed_db = db.list_confirmed_competitors(asin)
     confirmed_map = {c["competitor_asin"]: c for c in confirmed_db}
+    ignored_asins = db.get_ignored_competitor_asins(asin)
 
     # 3. Fetch Category Pool using real product_research (size: 100)
-    # Node for cervical pillow: 1055398:1063252:1199122:3732111
     pool_env = await mcp_client.call_tool("product_research", {
         "request": {
             "marketplace": marketplace,
@@ -542,9 +601,13 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
 
     top100_pool = []
     direct_pool = []
-    suggested_pool = []
+    candidate_candidates = []
     benchmark_pool = []
     found_confirmed_asins = set()
+
+    # Benchmark deduplication trackers
+    seen_benchmark_parents = set()
+    benchmark_brand_counts: Dict[str, int] = {}
 
     for idx, it in enumerate(raw_items):
         comp_asin = it.get("asin")
@@ -558,6 +621,9 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
         c_bsr = it.get("bsr")
         c_title = it.get("title") or "Cervical Memory Foam Pillow"
         c_brand = it.get("brand") or "N/A"
+        c_parent = it.get("parent") or it.get("parentAsin")
+
+        is_accessory = is_accessory_or_non_pillow(c_title)
 
         gap_info = calculate_competitor_gap(
             owner_price=owner_price,
@@ -577,49 +643,61 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
             "price": c_price,
             "bsr": c_bsr,
             "monthlyUnits": c_units,
+            "sellerSpriteEstimatedMonthlyUnits": c_units,
             "monthlyRevenue": it.get("revenue"),
             "rating": c_rating,
             "ratingsCount": c_reviews,
             "imageUrl": it.get("imageUrl"),
             "url": f"https://www.amazon.com/dp/{comp_asin}",
             "rankInCategory": idx + 1,
-            "gap": gap_info
+            "parentAsin": c_parent,
+            "gap": gap_info,
+            "credibilityBadge": "🟡 卖家精灵预估月销量 (第三方估算)"
         }
         top100_pool.append(comp_obj)
 
         # 1. Confirmed Direct Competitor
         if comp_asin in confirmed_map:
             found_confirmed_asins.add(comp_asin)
+            c_meta = confirmed_map[comp_asin]
             direct_pool.append({
                 **comp_obj,
-                "notes": confirmed_map[comp_asin].get("notes") or "人工已确认直接竞品",
+                "notes": c_meta.get("notes") or "人工已确认直接竞品",
                 "verified": 1,
-                "badge": "已确认直接竞品"
+                "badge": "已确认直接竞品",
+                "whyCompetitor": c_meta.get("why_competitor") or "同品类颈椎枕 · 形态功能直接对标",
+                "relativeSummary": c_meta.get("relative_summary") or gap_info["summary"],
+                "executiveConclusion": c_meta.get("executive_conclusion") or gap_info["insight"],
+                "metricScope": c_meta.get("metric_scope") or "child_asin"
             })
             continue
 
-        # 2. Benchmark Competitors (Top 5 in category)
-        if idx < 5:
-            benchmark_pool.append({
-                **comp_obj,
-                "badge": f"头部标杆 TOP {idx + 1}"
-            })
+        # 2. Benchmark Candidate Evaluation (Must not be accessory, parent deduplicated, brand capped at 2)
+        if not is_accessory and len(benchmark_pool) < 5:
+            # Check parent deduplication
+            parent_key = c_parent if c_parent else comp_asin
+            brand_count = benchmark_brand_counts.get(c_brand.lower(), 0)
+            if parent_key not in seen_benchmark_parents and brand_count < 2:
+                seen_benchmark_parents.add(parent_key)
+                benchmark_brand_counts[c_brand.lower()] = brand_count + 1
+                benchmark_pool.append({
+                    **comp_obj,
+                    "badge": f"头部标杆 TOP {len(benchmark_pool) + 1}",
+                    "benchmarkRank": len(benchmark_pool) + 1
+                })
 
-        # 3. Suggested Competitors (Keyword & Price relevance)
-        # Exclude self
-        if comp_asin == asin:
+        # 3. Candidate Discovery Pool (Filter self, confirmed, ignored, accessories)
+        if comp_asin == asin or comp_asin in ignored_asins or is_accessory:
             continue
 
-        title_lower = c_title.lower()
-        has_keywords = any(kw in title_lower for kw in ["cervical", "contour", "ergonomic", "memory foam", "neck", "butterfly", "orthopedic"])
-        is_close_price = c_price and owner_price and (abs(float(c_price) - float(owner_price)) <= 15.0)
-
-        if has_keywords or is_close_price:
-            suggested_pool.append({
-                **comp_obj,
-                "badge": "系统建议竞品",
-                "reason": "同属颈椎支撑品类且形态/价格相近"
-            })
+        sim_calc = calculate_similarity(comp_obj, owner_price)
+        candidate_candidates.append({
+            **comp_obj,
+            "badge": "候选竞品",
+            "similarityScore": sim_calc["score"],
+            "similarityReason": sim_calc["reason"],
+            "status": "candidate"
+        })
 
     # If any confirmed direct competitor was not in the top 100 returned items, read from local warehouse
     for c_asin, c_meta in confirmed_map.items():
@@ -651,6 +729,7 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
                 "price": c_price,
                 "bsr": c_bsr,
                 "monthlyUnits": c_units,
+                "sellerSpriteEstimatedMonthlyUnits": c_units,
                 "monthlyRevenue": c_rev,
                 "rating": c_rating,
                 "ratingsCount": c_reviews,
@@ -661,8 +740,93 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
                 "notes": c_meta.get("notes") or "手工添加直接竞品",
                 "verified": 1,
                 "badge": "已确认直接竞品",
-                "gap": gap_info
+                "gap": gap_info,
+                "whyCompetitor": c_meta.get("why_competitor") or "人工指定核心直接竞品",
+                "relativeSummary": c_meta.get("relative_summary") or gap_info["summary"],
+                "executiveConclusion": c_meta.get("executive_conclusion") or gap_info["insight"],
+                "metricScope": c_meta.get("metric_scope") or "child_asin",
+                "credibilityBadge": "🟡 卖家精灵预估月销量 (第三方估算)"
             })
+
+    # Detect parent/child variation duplication in direct_pool
+    # If multiple ASINs share brand and exact same monthlyUnits (>0) and reviews (>0)
+    seen_metric_combos = {}
+    for item in direct_pool:
+        u = item.get("monthlyUnits")
+        r = item.get("ratingsCount")
+        b = item.get("brand", "")
+        if u and r and u > 0:
+            combo_key = (b.lower(), u, r)
+            if combo_key in seen_metric_combos:
+                item["metricScope"] = "parent_family"
+                item["isVariationFamilyDuplicate"] = True
+                item["duplicateWarning"] = "可能属于同一父体聚合数据，禁止重复计入销量比较"
+                seen_metric_combos[combo_key]["metricScope"] = "parent_family"
+                seen_metric_combos[combo_key]["isVariationFamilyDuplicate"] = True
+                seen_metric_combos[combo_key]["duplicateWarning"] = "可能属于同一父体聚合数据，禁止重复计入销量比较"
+            else:
+                seen_metric_combos[combo_key] = item
+
+    # Sort Candidate Discovery Pool by similarityScore descending and take Top 10 strictly
+    candidate_candidates.sort(key=lambda x: (x.get("similarityScore", 0), x.get("monthlyUnits") or 0), reverse=True)
+    suggested_pool = candidate_candidates[:10]
+
+    # Benchmark Insight Summary: "头部标杆告诉我们什么？"
+    bench_units = [b["monthlyUnits"] for b in benchmark_pool if b.get("monthlyUnits")]
+    bench_prices = [b["price"] for b in benchmark_pool if b.get("price")]
+    bench_reviews = [b["ratingsCount"] for b in benchmark_pool if b.get("ratingsCount") is not None]
+    bench_ratings = [b["rating"] for b in benchmark_pool if b.get("rating")]
+
+    avg_bench_units = int(sum(bench_units) / len(bench_units)) if bench_units else None
+    min_bench_price = min(bench_prices) if bench_prices else None
+    max_bench_price = max(bench_prices) if bench_prices else None
+    median_bench_reviews = sorted(bench_reviews)[len(bench_reviews) // 2] if bench_reviews else None
+    median_bench_rating = sorted(bench_ratings)[len(bench_ratings) // 2] if bench_ratings else None
+
+    ceiling_conclusion = (
+        f"头部标杆平均预估月销约 {avg_bench_units:,} 件，主流定价区间 ${min_bench_price:.2f}-${max_bench_price:.2f}，"
+        f"Review 壁垒中位数约 {median_bench_reviews:,} 条，代表该细分市场天花板。"
+        if avg_bench_units and min_bench_price and max_bench_price and median_bench_reviews
+        else "头部标杆数据持续采集中，展现细分品类天花板出单与价格带特征。"
+    )
+
+    benchmark_insight = {
+        "benchmarkCount": len(benchmark_pool),
+        "avgUnits": avg_bench_units,
+        "priceRange": f"${min_bench_price:.2f} - ${max_bench_price:.2f}" if (min_bench_price and max_bench_price) else "--",
+        "medianReviews": median_bench_reviews,
+        "medianRating": median_bench_rating,
+        "ceilingConclusion": ceiling_conclusion
+    }
+
+    # Scatter Plot Data: Price vs Units vs Reviews
+    scatter_data = []
+    # 1. Add owner SKU
+    scatter_data.append({
+        "asin": asin,
+        "brand": f"{owner_brand} (我方)",
+        "title": owner_title,
+        "price": owner_price,
+        "monthlyUnits": owner_units or 0,
+        "sellerSpriteEstimatedMonthlyUnits": owner_units or 0,
+        "reviews": owner_reviews or 0,
+        "rating": owner_rating or 0.0,
+        "isOur": True
+    })
+    # 2. Add confirmed direct competitors
+    for c in direct_pool:
+        scatter_data.append({
+            "asin": c["asin"],
+            "brand": c.get("brand") or c["asin"],
+            "title": c.get("title") or c["asin"],
+            "price": c.get("price"),
+            "monthlyUnits": c.get("monthlyUnits") or 0,
+            "sellerSpriteEstimatedMonthlyUnits": c.get("monthlyUnits") or 0,
+            "reviews": c.get("ratingsCount") or 0,
+            "rating": c.get("rating") or 0.0,
+            "isOur": False,
+            "whyCompetitor": c.get("whyCompetitor")
+        })
 
     real_top_count = len(top100_pool)
     top_label = f"类目 TOP{real_top_count} 参照池" if real_top_count >= 30 else f"类目前 {real_top_count} 参照"
@@ -681,6 +845,8 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
             "directCompetitors": direct_pool,
             "suggestedCompetitors": suggested_pool,
             "benchmarkCompetitors": benchmark_pool,
+            "benchmarkInsight": benchmark_insight,
+            "scatterData": scatter_data,
             "top100Pool": top100_pool,
             "directCount": len(direct_pool),
             "suggestedCount": len(suggested_pool),
@@ -688,7 +854,7 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
             "topPoolCount": real_top_count,
             "topPoolLabel": top_label,
             "hasDirectCompetitors": len(direct_pool) > 0,
-            "emptyPrompt": "尚未建立直接竞品池。系统已自动从类目中发现待确认竞品，您可以一键选择加入或手工添加。"
+            "emptyPrompt": "尚未建立直接竞品池。系统已在下方'发现候选竞品'中为您推选出 10 款高相似度候选，您可以一键加入或忽略。"
         },
         "error": None
     }
@@ -1045,3 +1211,7 @@ async def confirm_suggested_competitor(owner_asin: str, competitor_asin: str, ma
 def remove_direct_competitor(owner_asin: str, competitor_asin: str) -> bool:
     """Removes a competitor from direct pool."""
     return db.remove_competitor(owner_asin, competitor_asin, group_type="direct")
+
+def ignore_candidate_competitor(owner_asin: str, competitor_asin: str) -> bool:
+    """Silences/ignores a candidate competitor so it will not appear in recommendations."""
+    return db.ignore_competitor(owner_asin, competitor_asin)
