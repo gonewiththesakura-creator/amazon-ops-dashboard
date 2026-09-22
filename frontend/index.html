@@ -154,7 +154,7 @@
               <div class="grid grid-cols-3 gap-3 my-4 p-3 bg-slate-50 rounded-lg border border-slate-100 text-center">
                 <div>
                   <div class="text-[10px] text-slate-400">30天大盘走势</div>
-                  <div id="cardMarketGrowth" class="text-base font-extrabold text-blue-600 mt-0.5">+8.6%</div>
+                  <div id="cardMarketGrowth" class="text-base font-extrabold text-blue-600 mt-0.5">--</div>
                 </div>
                 <div>
                   <div class="text-[10px] text-slate-400">月估总容量</div>
@@ -276,12 +276,12 @@
 
       <!-- ================= 视图 2：记忆棉市场大盘 (Market) ================= -->
       <section id="view-market" class="view-section hidden space-y-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 class="text-base font-bold text-slate-900">记忆棉人体工学枕市场大盘</h2>
-            <p class="text-xs text-slate-500 mt-0.5">四级细分市场地图 · 价格带分布与品牌集中度 (杜绝电子类错误回退)</p>
+            <p class="text-xs text-slate-500 mt-0.5">四级细分市场地图 · 价格带分布与品牌集中度 (基于真实类目样本，杜绝假数据)</p>
           </div>
-          <div id="marketSubcatTabs" class="flex items-center gap-1.5">
+          <div id="marketSubcatTabs" class="flex items-center gap-1.5 flex-wrap">
             <!-- Subcategory buttons -->
           </div>
         </div>
@@ -295,40 +295,118 @@
         </div>
 
         <div id="marketContent" class="space-y-6">
-          <!-- KPI 4 行 -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="exec-card p-4">
-              <div class="text-xs text-slate-500">在售活跃商品数</div>
-              <div id="mktProducts" class="text-xl font-bold text-slate-900 mt-1">--</div>
+          <!-- 顶部 1 句话大盘直白总结 (老板 10 秒摘要) -->
+          <div class="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-slate-800 text-xs leading-relaxed shadow-sm">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2 font-bold text-blue-900">
+                <span class="text-sm">🧭</span>
+                <span>大盘运营直白研判 (10秒老板摘要)</span>
+              </div>
+              <span id="marketSampleBadge" class="text-[11px] font-mono text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded border border-blue-200">本次样本: 100 款商品</span>
             </div>
-            <div class="exec-card p-4">
-              <div class="text-xs text-slate-500">类目月估总销量</div>
-              <div id="mktUnits" class="text-xl font-bold text-blue-600 mt-1">--</div>
+            <p id="mktOneSentenceText" class="text-slate-700 font-medium leading-relaxed">正在加载大盘研判...</p>
+          </div>
+
+          <!-- 回答老板 4 个核心商业问题网格 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Q1: 市场到底有多大？在涨还是在跌？ -->
+            <div class="exec-card p-4 flex flex-col justify-between">
+              <div>
+                <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wider">核心问题 1 · 市场容量与走势</div>
+                <h4 class="text-xs font-bold text-slate-900 mt-1">市场到底有多大？当前在涨还是在跌？</h4>
+                <p id="q1Answer" class="text-xs text-slate-600 mt-2 leading-relaxed">--</p>
+              </div>
+              <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 text-center">
+                <div class="bg-slate-50 p-2 rounded">
+                  <div class="text-[10px] text-slate-400">样本月总销</div>
+                  <div id="mktUnits" class="text-xs font-bold text-blue-600 font-mono mt-0.5">--</div>
+                </div>
+                <div class="bg-slate-50 p-2 rounded">
+                  <div class="text-[10px] text-slate-400">样本月总额</div>
+                  <div id="mktRevenue" class="text-xs font-bold text-slate-800 font-mono mt-0.5">--</div>
+                </div>
+                <div class="bg-slate-50 p-2 rounded">
+                  <div class="text-[10px] text-slate-400">30天走势</div>
+                  <div id="mktTrend30d" class="text-xs font-bold text-slate-700 font-mono mt-0.5">--</div>
+                </div>
+              </div>
             </div>
-            <div class="exec-card p-4">
-              <div class="text-xs text-slate-500">类目月估总销额</div>
-              <div id="mktRevenue" class="text-xl font-bold text-slate-900 mt-1">--</div>
+
+            <!-- Q2: 类目到底有没有被寡头垄断？新卖家/我们还有没有活路？ -->
+            <div class="exec-card p-4 flex flex-col justify-between">
+              <div>
+                <div class="text-[10px] font-bold text-rose-600 uppercase tracking-wider">核心问题 2 · 竞争格局与壁垒</div>
+                <h4 class="text-xs font-bold text-slate-900 mt-1">类目到底有没有被寡头垄断？我们还有没有活路？</h4>
+                <p id="q2Answer" class="text-xs text-slate-600 mt-2 leading-relaxed">--</p>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 text-center">
+                <div class="bg-slate-50 p-2 rounded">
+                  <div class="text-[10px] text-slate-400">CR4 品牌集中度</div>
+                  <div id="mktCr4" class="text-xs font-bold text-rose-600 font-mono mt-0.5">--</div>
+                </div>
+                <div class="bg-slate-50 p-2 rounded">
+                  <div class="text-[10px] text-slate-400">格局性质判定</div>
+                  <div id="mktMonopolyStatus" class="text-xs font-bold text-slate-800 mt-0.5">--</div>
+                </div>
+              </div>
             </div>
-            <div class="exec-card p-4">
-              <div class="text-xs text-slate-500">CR4 品牌集中度</div>
-              <div id="mktCr4" class="text-xl font-bold text-rose-600 mt-1">--</div>
-              <div id="mktMonopolyStatus" class="text-[10px] text-slate-400 mt-0.5">--</div>
+
+            <!-- Q3: 消费者都在买什么价位？哪个价格带最容易出单？ -->
+            <div class="exec-card p-4 flex flex-col justify-between">
+              <div>
+                <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wider">核心问题 3 · 消费承受力分布</div>
+                <h4 class="text-xs font-bold text-slate-900 mt-1">消费者都在买什么价位？哪个价格带最容易出单？</h4>
+                <p id="q3Answer" class="text-xs text-slate-600 mt-2 leading-relaxed">--</p>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 text-center">
+                <div class="bg-slate-50 p-2 rounded">
+                  <div class="text-[10px] text-slate-400">类目样本均价</div>
+                  <div id="mktAvgPrice" class="text-xs font-bold text-amber-600 font-mono mt-0.5">--</div>
+                </div>
+                <div class="bg-slate-50 p-2 rounded">
+                  <div class="text-[10px] text-slate-400">最大出单价格带</div>
+                  <div id="mktBestBracket" class="text-xs font-bold text-blue-600 font-mono mt-0.5">--</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Q4: 对我们 4 个核心 SKU 意味着什么？下一步怎么打？ -->
+            <div class="exec-card p-4 flex flex-col justify-between">
+              <div>
+                <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">核心问题 4 · 对我司业务的启示</div>
+                <h4 class="text-xs font-bold text-slate-900 mt-1">对我们 4 个核心 SKU 意味着什么？下一步怎么打？</h4>
+                <p id="q4Answer" class="text-xs text-slate-600 mt-2 leading-relaxed">--</p>
+              </div>
+              <div class="mt-3 pt-3 border-t border-slate-100 text-right">
+                <button onclick="App.navigateTo('products')" class="text-xs font-semibold text-blue-600 hover:text-blue-800">
+                  进入 4 SKU 战情室制定打法 ➔
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- 价格带柱线图 + 品牌排行 -->
+          <!-- 价格带供给 vs 需求分布 (含我方定价参考线) + 品牌排行 -->
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2 exec-card p-5">
               <div class="flex items-center justify-between mb-2">
-                <h3 class="text-sm font-bold text-slate-900">价格带供给量 vs 需求占比分布</h3>
-                <span class="text-[11px] text-slate-400">柱状: 商品数 / 折线: 销量占比</span>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">价格带供给量 vs 需求出单占比分布</h3>
+                  <p class="text-[11px] text-slate-400 mt-0.5">红虚线标记我方主推款定价 ($45.99) 所处价格带</p>
+                </div>
+                <span class="text-[11px] text-slate-400 font-medium">柱状: 商品数 / 折线: 销量占比</span>
               </div>
               <div id="chartMarketPriceBrackets" class="chart-box"></div>
             </div>
 
             <div class="exec-card p-5 flex flex-col justify-between">
               <div>
-                <h3 class="text-sm font-bold text-slate-900 mb-2">Top 10 品牌集中度榜单</h3>
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-sm font-bold text-slate-900">Top 10 品牌份额榜单</h3>
+                  <span class="text-[10px] text-slate-400">谁吃掉了市场？</span>
+                </div>
+                <p id="mktBrandNarrative" class="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded mb-3 border border-slate-100 leading-relaxed">
+                  --
+                </p>
                 <div class="overflow-x-auto max-h-64 overflow-y-auto">
                   <table class="w-full text-left text-xs">
                     <thead class="text-slate-400 border-b border-slate-100">
@@ -348,6 +426,41 @@
               </div>
             </div>
           </div>
+
+          <!-- 4 核心 SKU 联动策略卡片 (大盘对我司单品落地影响) -->
+          <div class="exec-card p-5">
+            <div class="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">大盘对我们 4 个核心 SKU 的影响与落地策略</h3>
+                <p class="text-xs text-slate-400 mt-0.5">每个产品根据自身价位与大盘出单带，明确下一步作战动作</p>
+              </div>
+            </div>
+            <div id="marketSkuCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <!-- Injected by market.js -->
+            </div>
+          </div>
+
+          <!-- 折叠更多技术样本指标 -->
+          <details class="exec-card p-4 text-xs text-slate-600">
+            <summary class="cursor-pointer font-bold text-slate-500 hover:text-slate-800">
+              查看细分品类更多技术性样本指标 (卖家国家分布、买家评分分布) ▾
+            </summary>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 pt-3 border-t border-slate-100">
+              <div>
+                <h5 class="font-bold text-slate-700 mb-2">卖家国家分布 (前台可查样本)</h5>
+                <div id="mktCountryList" class="space-y-1.5 text-[11px]">
+                  <!-- Injected by market.js -->
+                </div>
+              </div>
+              <div>
+                <h5 class="font-bold text-slate-700 mb-2">评分区间分布</h5>
+                <div id="mktRatingList" class="space-y-1.5 text-[11px]">
+                  <!-- Injected by market.js -->
+                </div>
+              </div>
+            </div>
+          </details>
+
         </div>
       </section>
 
@@ -356,109 +469,152 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h2 class="text-base font-bold text-slate-900">4 个核心记忆棉枕头 SKU 战情室</h2>
-            <p class="text-xs text-slate-500 mt-0.5">单个产品走势监控 · 区分直接竞品与全品类参照池</p>
+            <p class="text-xs text-slate-500 mt-0.5">单个产品走势监控 · 区分直接竞品与全品类参照池 · 拒绝伪造数据</p>
           </div>
-          <div id="productSkuTabs" class="flex items-center gap-1.5">
+          <div id="productSkuTabs" class="flex items-center gap-1.5 flex-wrap">
             <!-- 4 SKU buttons injected -->
           </div>
         </div>
 
         <div id="productLoading" class="hidden text-center py-10 text-xs text-slate-400">
-          <span class="animate-spin inline-block mr-1">↻</span> 正在调取产品画像与竞品池...
+          <span class="animate-spin inline-block mr-1">↻</span> 正在调取产品画像、真实 Keepa 价格与竞品池...
         </div>
 
         <!-- 待配置状态提示卡 -->
         <div id="productPendingNotice" class="hidden exec-card p-8 text-center text-slate-500 text-xs space-y-2">
           <div class="text-2xl">⏳</div>
           <div class="font-bold text-slate-800 text-sm">第 4 个核心记忆棉枕头 SKU 待配置</div>
-          <p class="max-w-md mx-auto text-slate-500">系统坚守数据真实原则，未配置前不凭空捏造任何假数据与假走势。您可在后续产品规划确认后在后台绑定 ASIN。</p>
+          <p class="max-w-md mx-auto text-slate-500 leading-relaxed">系统坚守数据真实原则，未配置前不凭空捏造任何假数据与假走势。您可在后续产品规划确认后在后台绑定 ASIN。</p>
         </div>
 
         <!-- 激活产品的实际内容 -->
         <div id="productActiveContent" class="space-y-6">
-          <!-- 产品核心指标卡 -->
+
+          <!-- 屏幕 1: 产品核心指标卡与运营直言 -->
           <div class="exec-card p-5">
             <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-100 gap-3">
               <div>
                 <h3 id="prodTitle" class="text-sm font-bold text-slate-900 line-clamp-1">--</h3>
-                <div class="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                <div class="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
                   <span id="prodAsin" class="font-mono font-bold text-blue-600">ASIN: --</span>
                   <span>•</span>
                   <span>品牌: <span id="prodBrand" class="font-semibold text-slate-800">ELOVNOVA</span></span>
                   <span>•</span>
                   <span>Parent ASIN: <span id="prodParent" class="font-mono text-slate-700">--</span></span>
+                  <span>•</span>
+                  <span id="prodCoupon" class="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 text-[10px] font-medium">Coupon: 无</span>
                 </div>
               </div>
-              <a id="prodLink" href="#" target="_blank" class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold self-start md:self-auto transition">
-                在 Amazon 打开 Listing ↗
+              <a id="prodLink" href="#" target="_blank" class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold self-start md:self-auto transition flex items-center gap-1">
+                <span>在 Amazon 打开 Listing</span>
+                <span>↗</span>
               </a>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-center">
-              <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <div class="text-[10px] text-slate-400">当前在售标价</div>
-                <div id="prodPrice" class="text-lg font-bold text-amber-600 mt-0.5">--</div>
+            <!-- 运营诊断直白研判 -->
+            <div id="prodDiagnosisBanner" class="my-3.5 p-3 rounded-lg bg-blue-50/60 border border-blue-100 text-xs flex items-start gap-2">
+              <span class="text-blue-600 font-bold mt-0.5">💡</span>
+              <div class="text-slate-700">
+                <span class="font-bold text-slate-900">产品运营研判：</span>
+                <span id="prodPlainDiagnosis">--</span>
               </div>
-              <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <div class="text-[10px] text-slate-400">大类 BSR 排名</div>
-                <div id="prodBsr" class="text-lg font-bold text-blue-600 font-mono mt-0.5">--</div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <div class="text-[10px] text-slate-400">当前在售标价</div>
+                  <div id="prodPrice" class="text-lg font-bold text-amber-600 mt-0.5 font-mono">--</div>
+                </div>
+                <div id="prodPriceStatus" class="text-[10px] text-slate-500 mt-1 truncate">标价持续稳定</div>
               </div>
-              <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <div class="text-[10px] text-slate-400">评分与评价基数</div>
-                <div id="prodRating" class="text-lg font-bold text-slate-800 mt-0.5">--</div>
+              <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <div class="text-[10px] text-slate-400">大类 BSR 排名</div>
+                  <div id="prodBsr" class="text-lg font-bold text-blue-600 font-mono mt-0.5">--</div>
+                </div>
+                <div class="text-[10px] text-slate-400 mt-1">越低排名越靠前</div>
               </div>
-              <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <div class="text-[10px] text-slate-400">细分四级类目</div>
-                <div class="text-xs font-semibold text-slate-700 mt-1">Cervical Pillows</div>
+              <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <div class="text-[10px] text-slate-400">买家评分与评论数</div>
+                  <div id="prodRating" class="text-lg font-bold text-slate-800 mt-0.5 font-mono">--</div>
+                </div>
+                <div id="prodRatingStatus" class="text-[10px] text-slate-500 mt-1">真实买家反馈</div>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <div class="text-[10px] text-slate-400">系统历史快照追踪</div>
+                  <div id="prodSnapshotHistory" class="text-xs font-bold text-slate-700 mt-1 font-mono">从今天开始监控</div>
+                </div>
+                <div class="text-[10px] text-emerald-600 font-medium mt-1">每日 08:30 自动抓取</div>
               </div>
             </div>
           </div>
 
-          <!-- 真实历史价格与 BSR 曲线 (若无真实数据则展示空状态，绝不伪造) -->
+          <!-- 屏幕 2: 竞品分类对照池 (彻底区分 4 池 + 差距分析) -->
           <div class="exec-card p-5">
-            <div class="flex items-center justify-between mb-2">
-              <h3 class="text-sm font-bold text-slate-900">价格与 BSR 敏感度历史走势</h3>
-              <span class="text-[11px] text-slate-400 font-mono">Keepa 真实多点位采样 (严禁数学生成平滑假线)</span>
-            </div>
-            <div id="chartProdHistory" class="chart-box"></div>
-          </div>
-
-          <!-- 4 竞品分类池 (彻底区分直接竞品 vs TOP100) -->
-          <div class="exec-card p-5">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
               <div>
-                <h3 class="text-sm font-bold text-slate-900">竞品对照战情池</h3>
-                <p class="text-xs text-slate-400 mt-0.5">区分直接竞品、头部标杆、异动新势力与大类 TOP100 参照池</p>
+                <h3 class="text-sm font-bold text-slate-900">竞品对照战情池 (分层精细化对标)</h3>
+                <p class="text-xs text-slate-400 mt-0.5">区分同款直接竞品、系统建议竞品、类目标杆与 TOP100 参照池</p>
               </div>
 
-              <!-- 竞品分类切换按钮 -->
-              <div class="flex items-center gap-1">
-                <button onclick="ProductsView.switchCompetitorPool('direct')" id="btnPool-direct" class="comp-pool-btn px-3 py-1.5 rounded-md text-xs font-semibold border border-blue-200 bg-blue-50 text-blue-600">
-                  🎯 同款直接竞品
-                </button>
-                <button onclick="ProductsView.switchCompetitorPool('benchmark')" id="btnPool-benchmark" class="comp-pool-btn px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">
-                  🏆 类目标杆 (Top 5)
-                </button>
-                <button onclick="ProductsView.switchCompetitorPool('fast_growth')" id="btnPool-fast_growth" class="comp-pool-btn px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">
-                  ⚡ 异动飙升新势力
-                </button>
-                <button onclick="ProductsView.switchCompetitorPool('top100')" id="btnPool-top100" class="comp-pool-btn px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">
-                  📊 类目大池 (TOP100)
+              <!-- 竞品操作与分类切换 -->
+              <div class="flex items-center gap-2 flex-wrap">
+                <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                  <button onclick="ProductsView.switchCompetitorPool('direct')" id="btnPool-direct" class="comp-pool-btn px-2.5 py-1 rounded text-xs font-semibold transition bg-white text-blue-600 shadow-sm">
+                    🎯 直接竞品 (<span id="badgeDirectCount">0</span>)
+                  </button>
+                  <button onclick="ProductsView.switchCompetitorPool('suggested')" id="btnPool-suggested" class="comp-pool-btn px-2.5 py-1 rounded text-xs font-medium text-slate-600 hover:text-slate-900 transition">
+                    💡 建议竞品 (<span id="badgeSuggestedCount">0</span>)
+                  </button>
+                  <button onclick="ProductsView.switchCompetitorPool('benchmark')" id="btnPool-benchmark" class="comp-pool-btn px-2.5 py-1 rounded text-xs font-medium text-slate-600 hover:text-slate-900 transition">
+                    🏆 类目标杆 (Top 5)
+                  </button>
+                  <button onclick="ProductsView.switchCompetitorPool('top100')" id="btnPool-top100" class="comp-pool-btn px-2.5 py-1 rounded text-xs font-medium text-slate-600 hover:text-slate-900 transition">
+                    📊 类目大池 (<span id="badgeTopCount">100</span>)
+                  </button>
+                </div>
+
+                <button onclick="ProductsView.openAddCompetitorModal()" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-lg transition shadow-sm flex items-center gap-1">
+                  <span>+ 手工添加直接竞品</span>
                 </button>
               </div>
             </div>
 
+            <!-- 直接竞品为空时的显著引导卡片 -->
+            <div id="directCompEmptyNotice" class="hidden my-4 p-5 rounded-xl bg-amber-50/60 border border-amber-200 text-amber-900 text-xs space-y-2">
+              <div class="flex items-center gap-2 font-bold text-sm text-amber-800">
+                <span>⚠️</span>
+                <span>尚未建立已确认的直接竞品池</span>
+              </div>
+              <p class="text-amber-700 leading-relaxed">
+                系统已根据颈椎枕品类与形态，在类目大池中为您发掘了 <span id="emptySuggestedCount" class="font-bold font-mono">--</span> 款形态或价格相近的可能竞品。
+                您可以点击“查看系统建议竞品”挑选确认，或者直接手工输入竞品 ASIN 加入每日快照监控池。
+              </p>
+              <div class="flex items-center gap-3 pt-1">
+                <button onclick="ProductsView.switchCompetitorPool('suggested')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold shadow-sm transition">
+                  浏览系统建议竞品 ➔
+                </button>
+                <button onclick="ProductsView.openAddCompetitorModal()" class="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 rounded text-xs font-semibold shadow-sm transition">
+                  + 手工输入竞品 ASIN
+                </button>
+              </div>
+            </div>
+
+            <!-- 竞品表格 (含差距分析) -->
             <div class="overflow-x-auto mt-3">
               <table class="w-full text-left text-xs text-slate-700">
                 <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
-                    <th class="py-2.5 px-3">竞品 ASIN</th>
-                    <th class="py-2.5 px-3">竞品标题</th>
-                    <th class="py-2.5 px-3">品牌</th>
+                    <th class="py-2.5 px-3">竞品信息</th>
                     <th class="py-2.5 px-3">标价</th>
                     <th class="py-2.5 px-3">大类 BSR</th>
                     <th class="py-2.5 px-3">月估销量</th>
-                    <th class="py-2.5 px-3 text-right">链接</th>
+                    <th class="py-2.5 px-3">评分/评价数</th>
+                    <th class="py-2.5 px-3">与我方差距 / 运营启发 (Gap Analysis)</th>
+                    <th class="py-2.5 px-3 text-right">操作</th>
                   </tr>
                 </thead>
                 <tbody id="compTableBody">
@@ -467,8 +623,64 @@
               </table>
             </div>
           </div>
+
+          <!-- 屏幕 3: 独立走势图拆分 (标价步进图 + BSR走势图) -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 卡片 1: 标价调整事件步进图 -->
+            <div class="exec-card p-5">
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">标价调整事件步进图</h3>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Keepa 真实采样 · 无调价则标明稳定，严禁生成伪造波浪线</p>
+                </div>
+                <span id="priceStepBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">标价步进记录</span>
+              </div>
+              <div id="chartProdPriceStep" class="chart-box"></div>
+            </div>
+
+            <!-- 卡片 2: 大类 BSR 走势追踪图 -->
+            <div class="exec-card p-5">
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">大类 BSR 走势追踪图</h3>
+                  <p class="text-[11px] text-slate-400 mt-0.5">倒置 Y 轴 (越往上排名越高) · 每日 08:30 自动追加新点位</p>
+                </div>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">BSR 点位</span>
+              </div>
+              <div id="chartProdBsrTrend" class="chart-box"></div>
+            </div>
+          </div>
+
         </div>
       </section>
+
+      <!-- 手工添加竞品弹窗 Modal -->
+      <div id="modalAddCompetitor" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-100">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <span>🎯</span>
+              <span>手工添加直接竞品</span>
+            </h3>
+            <button onclick="ProductsView.closeAddCompetitorModal()" class="text-slate-400 hover:text-slate-600 text-lg">×</button>
+          </div>
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block text-slate-700 font-semibold mb-1">竞品 ASIN (必填):</label>
+              <input id="inputManualCompAsin" type="text" placeholder="例如: B08XXXXXXX" class="w-full px-3 py-2 border border-slate-200 rounded-lg uppercase font-mono focus:outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-700 font-semibold mb-1">备注说明 (选填):</label>
+              <input id="inputManualCompNotes" type="text" placeholder="例如: 同款人体工学蝴蝶枕头部竞品" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600">
+            </div>
+            <p class="text-[11px] text-slate-400">添加后该 ASIN 将作为当前 SKU 的直接竞品，纳入每日 08:30 定时抓取与对比任务。</p>
+          </div>
+          <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <button onclick="ProductsView.closeAddCompetitorModal()" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition">取消</button>
+            <button onclick="ProductsView.submitManualCompetitor()" id="btnSubmitManualComp" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition shadow-sm">确认添加</button>
+          </div>
+        </div>
+      </div>
 
       <!-- ================= 视图 4：记忆棉供应链待开发 (Pipeline) ================= -->
       <section id="view-pipeline" class="view-section hidden space-y-6">
@@ -519,13 +731,48 @@
       <section id="view-data-jobs" class="view-section hidden space-y-6">
         <div>
           <h2 class="text-base font-bold text-slate-900">每日自动化采集与监控任务</h2>
-          <p class="text-xs text-slate-500 mt-0.5">后台自动抓取快照并积累历史数据 · 杜绝依赖临时内存缓存</p>
+          <p class="text-xs text-slate-500 mt-0.5">后台定时抓取快照并积累历史数据 · 杜绝依赖临时内存缓存</p>
+        </div>
+
+        <!-- 自动化运行健康看板卡片 -->
+        <div class="exec-card p-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+            <div class="flex items-center gap-2.5">
+              <span id="automationStatusDot" class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">自动化监控运行看板</h3>
+                <p id="automationStatusSummary" class="text-xs text-slate-500 mt-0.5">后台定时任务健康运行中</p>
+              </div>
+            </div>
+            <button id="btnManualTriggerRefresh" onclick="App.triggerManualJob()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition shadow-sm flex items-center gap-1.5 self-start sm:self-auto">
+              <span>⚡ 立即执行全量快照</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-center">
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div class="text-[10px] text-slate-400">调度模式与时间</div>
+              <div id="autoScheduleTime" class="text-xs font-bold text-slate-800 mt-1 font-mono">每天 08:30 CST</div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div class="text-[10px] text-slate-400">下次调度预计执行</div>
+              <div id="autoNextRun" class="text-xs font-bold text-blue-600 mt-1 font-mono">明天 08:30</div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div class="text-[10px] text-slate-400">上次快照执行状态</div>
+              <div id="autoLastStatus" class="text-xs font-bold text-emerald-600 mt-1">正常完成</div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div class="text-[10px] text-slate-400">单次监控对象覆盖</div>
+              <div id="autoTargetsCount" class="text-xs font-bold text-slate-800 mt-1">4核心 + 竞品 + 大盘</div>
+            </div>
+          </div>
         </div>
 
         <div class="exec-card p-5">
           <div class="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
-            <h3 class="text-sm font-bold text-slate-900">快照采集流水记录</h3>
-            <span class="text-xs text-slate-400">每日定时调度</span>
+            <h3 class="text-sm font-bold text-slate-900">快照采集流水历史记录</h3>
+            <span class="text-xs text-slate-400">精准追踪成功与失败项</span>
           </div>
 
           <div class="overflow-x-auto">
@@ -534,6 +781,8 @@
                 <tr>
                   <th class="py-2.5 px-4">任务名称</th>
                   <th class="py-2.5 px-4">状态</th>
+                  <th class="py-2.5 px-4">耗时</th>
+                  <th class="py-2.5 px-4">成功/失败项</th>
                   <th class="py-2.5 px-4">触发时间</th>
                   <th class="py-2.5 px-4">执行摘要</th>
                 </tr>

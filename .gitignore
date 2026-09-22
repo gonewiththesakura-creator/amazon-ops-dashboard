@@ -11,6 +11,7 @@ ENV/
 
 # SQLite cache
 *.db
+*.sqlite
 *.sqlite3
 cache.db
 backend/cache.db

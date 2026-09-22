@@ -1,9 +1,14 @@
 import os
+import logging
+from contextlib import asynccontextmanager
+from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from .config import settings
 from .services.core_market_service import get_core_market_overview, get_market_tree
@@ -11,7 +16,10 @@ from .services.core_product_service import (
     get_core_products_registry,
     get_core_product_detail,
     get_core_product_competitors,
-    get_core_products_comparison
+    get_core_products_comparison,
+    add_direct_competitor,
+    confirm_suggested_competitor,
+    remove_direct_competitor
 )
 from .services.pipeline_service import get_pipeline_products_list, add_pipeline_product
 from .services.opportunity_lab_service import (
@@ -20,10 +28,42 @@ from .services.opportunity_lab_service import (
     get_research_project_by_id
 )
 from .services.rule_diagnostics import get_executive_briefing, generate_rule_diagnostics
-from .services.data_job_service import list_data_jobs, trigger_daily_refresh
+from .services.data_job_service import list_data_jobs, trigger_daily_refresh, get_automation_status
 from .services.replenishment_service import calculate_replenishment
 
-app = FastAPI(title="Amazon AI Opportunity Intelligence API", version="2.0.0")
+logger = logging.getLogger("main")
+
+# Background Scheduler for Daily 08:30 Snapshot (Plan A)
+scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Register daily snapshot task at 08:30 AM Beijing Time
+    try:
+        scheduler.add_job(
+            trigger_daily_refresh,
+            CronTrigger(hour=8, minute=30, timezone="Asia/Shanghai"),
+            id="daily_amazon_snapshot",
+            name="Daily Amazon Ops Snapshot (08:30 CST)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600
+        )
+        scheduler.start()
+        logger.info("[SCHEDULER] Daily snapshot job scheduled for 08:30 CST.")
+    except Exception as e:
+        logger.error(f"[SCHEDULER] Failed to start scheduler: {e}")
+
+    yield
+
+    try:
+        scheduler.shutdown(wait=False)
+        logger.info("[SCHEDULER] Scheduler shut down.")
+    except Exception:
+        pass
+
+app = FastAPI(title="Amazon AI Opportunity Intelligence API", version="2.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,6 +89,10 @@ class PipelineAddRequest(BaseModel):
     rationale: Optional[str] = ""
     riskFlag: Optional[str] = ""
 
+class DirectCompetitorRequest(BaseModel):
+    competitorAsin: str
+    notes: Optional[str] = "人工添加直接竞品"
+
 class ReplenishRequest(BaseModel):
     stock: int = 200
     dailySales: int = 50
@@ -64,7 +108,7 @@ async def health():
     return {
         "status": "ok",
         "service": "Amazon AI Opportunity Intelligence",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "mcp_url": settings.MCP_URL
     }
 
@@ -88,7 +132,7 @@ async def api_market_overview(marketplace: str = "US", nodeIdPath: str = "105539
 async def api_market_tree():
     return get_market_tree()
 
-# ----------------- Module 2: Core 4 SKUs -----------------
+# ----------------- Module 2: Core 4 SKUs & Competitors -----------------
 @app.get("/api/core-products")
 async def api_get_core_products():
     return {
@@ -107,6 +151,39 @@ async def api_get_core_product_detail(asin: str, marketplace: str = "US"):
 @app.get("/api/core-products/{asin}/competitors")
 async def api_get_core_product_competitors(asin: str, marketplace: str = "US"):
     return await get_core_product_competitors(marketplace, asin)
+
+@app.post("/api/core-products/{asin}/competitors/manual")
+async def api_add_manual_competitor(asin: str, req: DirectCompetitorRequest):
+    success = add_direct_competitor(asin, req.competitorAsin.strip().upper(), req.notes or "运营手工录入直接竞品")
+    return {
+        "status": "ok",
+        "success": success,
+        "ownerAsin": asin,
+        "competitorAsin": req.competitorAsin.strip().upper(),
+        "message": f"已成功将 ASIN {req.competitorAsin} 加入已确认直接竞品池"
+    }
+
+@app.post("/api/core-products/{asin}/competitors/confirm")
+async def api_confirm_competitor(asin: str, req: DirectCompetitorRequest):
+    success = confirm_suggested_competitor(asin, req.competitorAsin.strip().upper())
+    return {
+        "status": "ok",
+        "success": success,
+        "ownerAsin": asin,
+        "competitorAsin": req.competitorAsin.strip().upper(),
+        "message": f"已将系统建议竞品 {req.competitorAsin} 转为已确认直接竞品"
+    }
+
+@app.delete("/api/core-products/{asin}/competitors/{comp_asin}")
+async def api_delete_competitor(asin: str, comp_asin: str):
+    success = remove_direct_competitor(asin, comp_asin.strip().upper())
+    return {
+        "status": "ok",
+        "success": success,
+        "ownerAsin": asin,
+        "competitorAsin": comp_asin.strip().upper(),
+        "message": f"已从直接竞品池移除 {comp_asin}"
+    }
 
 # ----------------- Module 3: Pipeline (Memory Foam Supply Chain) -----------------
 @app.get("/api/pipeline")
@@ -136,13 +213,17 @@ async def api_get_research_by_id(project_id: int):
 async def api_conduct_research(req: ResearchRequest):
     return await conduct_new_category_research(req.userQuestion, req.marketplace or "US")
 
-# ----------------- Data Center & Jobs -----------------
+# ----------------- Data Center & Automation Jobs -----------------
 @app.get("/api/data-jobs")
 async def api_get_data_jobs():
     return {
         "status": "ok",
         "data": list_data_jobs()
     }
+
+@app.get("/api/data-jobs/status")
+async def api_get_automation_status():
+    return get_automation_status()
 
 @app.post("/api/data-jobs/refresh")
 async def api_refresh_data_jobs(marketplace: str = "US"):

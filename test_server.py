@@ -30,7 +30,7 @@ def run_tests():
     print("\n[Test 1] Security & Config Sanitization...")
     assert settings.MCP_SECRET, "SELLERSPRITE_MCP_SECRET must not be empty"
     assert "?" not in settings.MCP_URL, f"MCP_URL must not contain query parameters (tokens): {settings.MCP_URL}"
-    assert "0b43e279" not in settings.MCP_URL, "MCP_URL must not leak secret token"
+    assert settings.MCP_SECRET not in settings.MCP_URL, "MCP_URL must not leak secret token"
     print("   [PASS] Secret is securely isolated in .env, clean MCP URL:", settings.MCP_URL)
 
     # 2. Health Check Endpoint
@@ -39,7 +39,7 @@ def run_tests():
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
-    assert data["version"] == "2.0.0"
+    assert data["version"] == "2.1.0"
     print("   [PASS] Health check ok, version:", data["version"])
 
     # 3. Executive 10-Second Briefing
@@ -72,7 +72,13 @@ def run_tests():
     assert "nodeIdPath" in m_data
     assert "cr4" in m_data
     assert "priceBrackets" in m_data
-    print(f"   [PASS] Market Overview: CR4={m_data.get('cr4')}, Price Brackets={len(m_data.get('priceBrackets', []))}")
+    assert "executiveOneSentence" in m_data, "executiveOneSentence must be present"
+    assert "marketSizeQuestion" in m_data, "marketSizeQuestion must be present"
+    assert "concentrationQuestion" in m_data, "concentrationQuestion must be present"
+    assert "priceBandQuestion" in m_data, "priceBandQuestion must be present"
+    assert "skuImpactQuestion" in m_data, "skuImpactQuestion must be present"
+    print(f"   [PASS] Market Overview: CR4={m_data.get('cr4')}%, Price Brackets={len(m_data.get('priceBrackets', []))}")
+    print(f"   [PASS] 4 Core Questions answered for Executive: Size, Concentration, Price Band, SKU Impact")
 
     # 5. Module 2: Core 4 SKU War Room & Zero Fake Fallback Check
     print("\n[Test 5] Module 2: Core Products Registry & Scalar BSR...")
@@ -94,10 +100,13 @@ def run_tests():
     prod_detail = prod_env.get("data", {})
     assert prod_detail.get("asin") == "B0GYH8WT22"
     bsr_val = prod_detail.get("bsr")
-    # bsr should either be an int or None (when unavailable), NEVER the string "[object Object]" or dict
     assert not isinstance(bsr_val, dict), "BSR must be a scalar integer or None, not a raw object"
     assert str(bsr_val) != "[object Object]", "BSR must not be rendered as '[object Object]'"
+    assert "plainDiagnosis" in prod_detail, "plainDiagnosis must be present"
+    assert "lastPriceChange" in prod_detail, "lastPriceChange must be present"
+    assert "priceStepPoints" in prod_detail, "priceStepPoints must be present"
     print(f"   [PASS] ASIN B0GYH8WT22 clean scalar BSR: {bsr_val}, price: {prod_detail.get('price')}")
+    print(f"   [PASS] Plain diagnosis: {prod_detail.get('plainDiagnosis')}")
 
     # Test Competitors endpoint (4 pools)
     comp_resp = client.get("/api/core-products/B0GYH8WT22/competitors")
@@ -107,9 +116,27 @@ def run_tests():
     comp_data = comp_env.get("data", {})
     assert "directCompetitors" in comp_data
     assert "benchmarkCompetitors" in comp_data
-    assert "fastGrowthCompetitors" in comp_data
+    assert "suggestedCompetitors" in comp_data
     assert "top100Pool" in comp_data
-    print(f"   [PASS] Competitor pools verified: direct={len(comp_data['directCompetitors'])}, top100={len(comp_data['top100Pool'])}")
+    assert len(comp_data["top100Pool"]) == 100, f"Expected 100 real items in top pool, got {len(comp_data['top100Pool'])}"
+    first_item = comp_data["top100Pool"][0]
+    assert "gap" in first_item, "Gap analysis must be present for competitor"
+    assert "summary" in first_item["gap"]
+    assert "insight" in first_item["gap"]
+    print(f"   [PASS] Competitor 4 pools: suggested={len(comp_data['suggestedCompetitors'])}, top100={len(comp_data['top100Pool'])}")
+    print(f"   [PASS] Competitor gap analysis verified: {first_item['gap']['summary']} | {first_item['gap']['insight']}")
+
+    # Test Manual Competitor CRUD
+    add_c_resp = client.post("/api/core-products/B0GYH8WT22/competitors/manual", json={
+        "competitorAsin": "B0TESTMANUAL1",
+        "notes": "单元测试直接竞品"
+    })
+    assert add_c_resp.status_code == 200
+    print("   [PASS] Added manual direct competitor B0TESTMANUAL1")
+
+    del_c_resp = client.delete("/api/core-products/B0GYH8WT22/competitors/B0TESTMANUAL1")
+    assert del_c_resp.status_code == 200
+    print("   [PASS] Removed manual direct competitor B0TESTMANUAL1")
 
     # Test Market Relative Performance
     comp_all = client.get("/api/core-products/comparison")
@@ -175,6 +202,17 @@ def run_tests():
     assert jobs_resp.status_code == 200
     jobs = jobs_resp.json().get("data", [])
     print(f"   [PASS] Data jobs logged: {len(jobs)}")
+
+    status_resp = client.get("/api/data-jobs/status")
+    assert status_resp.status_code == 200
+    st_env = status_resp.json()
+    assert st_env["status"] == "ok"
+    st_data = st_env.get("data", {})
+    assert "cronSchedule" in st_data
+    assert "nextRunAt" in st_data
+    assert "monitoredTargetsCount" in st_data
+    assert st_data["cronSchedule"] == "08:30 CST"
+    print(f"   [PASS] Automation status verified: nextRun={st_data['nextRunAt']}, targets={st_data['monitoredTargetsCount']}")
 
     # 9. Phase 2 Replenishment Model (Kept for continuity)
     print("\n[Test 9] Phase 2: Replenishment Engine...")

@@ -89,13 +89,16 @@ class Database:
                 )
             """)
 
-            # 5. Competitor Sets (classified into direct, benchmark, fast_growth, top100)
+            # 5. Competitor Sets (classified into direct, suggested, benchmark, fast_growth, top100)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS competitor_sets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     owner_asin TEXT NOT NULL,
                     competitor_asin TEXT NOT NULL,
-                    group_type TEXT CHECK(group_type IN ('direct', 'benchmark', 'fast_growth', 'top100')),
+                    group_type TEXT CHECK(group_type IN ('direct', 'suggested', 'benchmark', 'fast_growth', 'top100')),
+                    source TEXT DEFAULT 'manual',
+                    verified INTEGER DEFAULT 0,
+                    verified_at DATETIME,
                     similarity_score REAL DEFAULT 1.0,
                     notes TEXT,
                     active BOOLEAN DEFAULT 1,
@@ -103,6 +106,17 @@ class Database:
                     UNIQUE(owner_asin, competitor_asin, group_type)
                 )
             """)
+
+            # Schema migrations for existing DB instances
+            for col_name, col_type in [
+                ("source", "TEXT DEFAULT 'manual'"),
+                ("verified", "INTEGER DEFAULT 0"),
+                ("verified_at", "DATETIME")
+            ]:
+                try:
+                    cursor.execute(f"ALTER TABLE competitor_sets ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
 
             # 6. Pipeline Products (Memory Foam Supply Chain Relatives)
             cursor.execute("""
@@ -156,11 +170,64 @@ class Database:
                     job_name TEXT NOT NULL,
                     status TEXT NOT NULL,
                     run_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    result_summary TEXT
+                    duration_seconds REAL DEFAULT 0.0,
+                    items_total INTEGER DEFAULT 0,
+                    items_success INTEGER DEFAULT 0,
+                    items_failed INTEGER DEFAULT 0,
+                    result_summary TEXT,
+                    details_json TEXT
                 )
             """)
 
+            for col_name, col_type in [
+                ("duration_seconds", "REAL DEFAULT 0.0"),
+                ("items_total", "INTEGER DEFAULT 0"),
+                ("items_success", "INTEGER DEFAULT 0"),
+                ("items_failed", "INTEGER DEFAULT 0"),
+                ("details_json", "TEXT")
+            ]:
+                try:
+                    cursor.execute(f"ALTER TABLE data_jobs ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+
             conn.commit()
+
+    def add_competitor(self, owner_asin: str, competitor_asin: str, group_type: str = "direct", source: str = "manual", verified: int = 1, notes: str = "", similarity_score: float = 1.0) -> bool:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self.get_connection() as conn:
+            conn.execute("""
+                INSERT INTO competitor_sets (owner_asin, competitor_asin, group_type, source, verified, verified_at, notes, similarity_score, active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ON CONFLICT(owner_asin, competitor_asin, group_type) DO UPDATE SET
+                    source = excluded.source,
+                    verified = excluded.verified,
+                    verified_at = excluded.verified_at,
+                    notes = excluded.notes,
+                    similarity_score = excluded.similarity_score,
+                    active = 1
+            """, (owner_asin, competitor_asin, group_type, source, verified, now_iso if verified else None, notes, similarity_score))
+            conn.commit()
+            return True
+
+    def remove_competitor(self, owner_asin: str, competitor_asin: str, group_type: str = "direct") -> bool:
+        with self.get_connection() as conn:
+            conn.execute("""
+                DELETE FROM competitor_sets 
+                WHERE owner_asin = ? AND competitor_asin = ? AND group_type = ?
+            """, (owner_asin, competitor_asin, group_type))
+            conn.commit()
+            return True
+
+    def list_confirmed_competitors(self, owner_asin: str) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("""
+                SELECT * FROM competitor_sets 
+                WHERE owner_asin = ? AND verified = 1 AND active = 1
+                ORDER BY created_at DESC
+            """, (owner_asin,))
+            return [dict(r) for r in c.fetchall()]
 
     def seed_defaults(self):
         """Seeds standard core products, category nodes, and pipeline candidates without fabricating metrics."""
@@ -248,27 +315,30 @@ class Database:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (pid, name, clevel, kw, nid, st, dec, rat, risk))
 
-            # Seed benchmark competitors for Cervical Pillow
-            benchmark_seeds = [
-                ("B0GYH8WT22", "B0H377GYGF", "benchmark", 0.95, "Derila 颈椎枕类目头部标杆"),
-                ("B0GYH8WT22", "B0FG2SH6K5", "benchmark", 0.90, "Derila 同款蝶形枕"),
-                ("B0GY2TDLTZ", "B0H377GYGF", "benchmark", 0.95, "灰色款对照类目头部"),
-                ("B0GY2TDLTZ", "B0C1K5XYZ1", "direct", 0.92, "同价位中阶灰色蝴蝶枕直接竞品"),
-                ("B0GY2WGTDM", "B0GN8Z748C", "benchmark", 0.92, "蓝色款头部参照")
-            ]
-            for o_asin, c_asin, gtype, score, note in benchmark_seeds:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO competitor_sets (owner_asin, competitor_asin, group_type, similarity_score, notes)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (o_asin, c_asin, gtype, score, note))
+            # Clean any previously inserted unverified dummy seeds
+            cursor.execute("DELETE FROM competitor_sets WHERE competitor_asin = 'B0C1K5XYZ1'")
 
-            # Seed Module 4: Initial Opportunity Lab sample project (e.g. 小学一年级开学用品组合)
+            # Real, verified benchmark competitors from category (Derila brand verified ASINs)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            benchmark_seeds = [
+                ("B0GYH8WT22", "B0H377GYGF", "benchmark", "auto_discovery", 1, now_iso, 0.95, "Derila 颈椎枕类目头部标杆"),
+                ("B0GYH8WT22", "B0FG2SH6K5", "benchmark", "auto_discovery", 1, now_iso, 0.90, "Derila 同款蝶形枕"),
+                ("B0GY2TDLTZ", "B0H377GYGF", "benchmark", "auto_discovery", 1, now_iso, 0.95, "灰色款对照类目头部标杆"),
+                ("B0GY2WGTDM", "B0H377GYGF", "benchmark", "auto_discovery", 1, now_iso, 0.95, "蓝色款对照类目头部标杆")
+            ]
+            for o_asin, c_asin, gtype, src, ver, ver_at, score, note in benchmark_seeds:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO competitor_sets (owner_asin, competitor_asin, group_type, source, verified, verified_at, similarity_score, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (o_asin, c_asin, gtype, src, ver, ver_at, score, note))
+
+            # Module 4: Initial Opportunity Lab sample project marked clearly as demo
             cursor.execute("""
                 INSERT OR IGNORE INTO research_projects (id, title, research_type, status, user_question, plan_json, findings_json)
-                VALUES (1, '小学一年级开学学习用品组合套装可行性研究', 'new_category', 'completed', 
+                VALUES (1, '【演示示例】小学一年级开学文具套装可行性研究 (Demo Only)', 'new_category', 'completed', 
                 '我想看看小学一年级开学用品组合有没有机会。',
-                '{"categoryLevels": ["Office Products", "Office & School Supplies", "Writing & Correction Supplies", "School Supply Sets"], "targetMarket": "US", "priceTarget": "25-35"}',
-                '{"conclusion": "波段性强机会，适合7-8月Back-to-School开学季集中发力", "opportunities": ["一站式开学必备文具大礼包需求高", "套装客单价高于单支文具，可拉高单笔利润"], "risks": ["具有极强季节性，9月后销量断崖式下滑", "文具单品拼装成本高，SKU缺一不可"]}')
+                '{"categoryLevels": ["Office Products", "Office & School Supplies", "Writing & Correction Supplies", "School Supply Sets"], "targetMarket": "US", "priceTarget": "25-35", "isDemo": true}',
+                '{"conclusion": "【演示数据】波段性强机会，适合7-8月Back-to-School开学季集中发力", "opportunities": ["一站式开学必备文具大礼包需求高", "套装客单价高于单支文具，可拉高单笔利润"], "risks": ["具有极强季节性，9月后销量断崖式下滑", "文具单品拼装成本高，SKU缺一不可"]}')
             """)
 
             conn.commit()

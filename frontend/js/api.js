@@ -79,7 +79,31 @@ const API = {
     return this.get("/api/data-jobs");
   },
 
+  getAutomationStatus() {
+    return this.get("/api/data-jobs/status");
+  },
+
   triggerDataRefresh() {
     return this.post("/api/data-jobs/refresh", {});
+  },
+
+  addManualCompetitor(asin, competitorAsin, notes = "手工添加直接竞品") {
+    return this.post(`/api/core-products/${asin}/competitors/manual`, { competitorAsin, notes });
+  },
+
+  confirmCompetitor(asin, competitorAsin) {
+    return this.post(`/api/core-products/${asin}/competitors/confirm`, { competitorAsin });
+  },
+
+  async deleteCompetitor(asin, competitorAsin) {
+    try {
+      const res = await fetch(`/api/core-products/${asin}/competitors/${competitorAsin}`, {
+        method: "DELETE"
+      });
+      return await res.json();
+    } catch (e) {
+      console.error("API DELETE error:", e);
+      return { status: "error", error: e.message };
+    }
   }
 };

@@ -81,18 +81,85 @@ const App = {
   },
 
   async loadDataJobsView() {
-    const res = await API.getDataJobs();
-    const tbody = document.getElementById("jobsTableBody");
-    if (!tbody || !res || !res.data) return;
+    const [jobsRes, statusRes] = await Promise.all([
+      API.getDataJobs(),
+      API.getAutomationStatus()
+    ]);
 
-    tbody.innerHTML = res.data.map(j => `
-      <tr class="hover:bg-slate-50 text-xs border-b border-slate-100">
-        <td class="py-2.5 px-4 font-mono font-bold text-slate-800">${j.job_name}</td>
-        <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${j.status === 'success' ? 'badge-green' : 'badge-rose'}">${j.status}</span></td>
-        <td class="py-2.5 px-4 font-mono text-slate-500">${j.run_at}</td>
-        <td class="py-2.5 px-4 text-slate-700">${j.result_summary || '--'}</td>
-      </tr>
-    `).join("");
+    // 1. Update Automation Health Card
+    if (statusRes && statusRes.status === "ok" && statusRes.data) {
+      const s = statusRes.data;
+      const statusDot = document.getElementById("automationStatusDot");
+      const statusSummary = document.getElementById("automationStatusSummary");
+      const nextRunEl = document.getElementById("autoNextRun");
+      const lastStatusEl = document.getElementById("autoLastStatus");
+      const targetsEl = document.getElementById("autoTargetsCount");
+
+      if (statusSummary) {
+        statusSummary.textContent = `每日 08:30 自动调度运行中 · 监控覆盖: 4核心SKU + ${s.confirmedCompetitorsCount || 0}已确认竞品 + 5类目标杆 + 细分大盘`;
+      }
+      if (nextRunEl) {
+        nextRunEl.textContent = s.nextRunAt ? s.nextRunAt.slice(0, 16) : "明天 08:30";
+      }
+      if (lastStatusEl) {
+        if (s.lastRunStatus === "success") {
+          lastStatusEl.textContent = `正常完成 (${s.lastRunDurationSeconds || 0}秒)`;
+          lastStatusEl.className = "text-xs font-bold text-emerald-600 mt-1";
+          if (statusDot) statusDot.className = "w-3 h-3 rounded-full bg-emerald-500 animate-pulse";
+        } else if (s.lastRunStatus === "partial") {
+          lastStatusEl.textContent = `部分完成 (${s.lastRunItemsSuccess || 0}成功 / ${s.lastRunItemsFailed || 0}失败)`;
+          lastStatusEl.className = "text-xs font-bold text-amber-600 mt-1";
+          if (statusDot) statusDot.className = "w-3 h-3 rounded-full bg-amber-500 animate-pulse";
+        } else {
+          lastStatusEl.textContent = s.lastRunStatus || "待调度";
+          lastStatusEl.className = "text-xs font-bold text-slate-700 mt-1";
+        }
+      }
+      if (targetsEl) {
+        targetsEl.textContent = `${s.monitoredTargetsCount || 10} 个关键业务对象`;
+      }
+    }
+
+    // 2. Render Jobs Table
+    const tbody = document.getElementById("jobsTableBody");
+    if (!tbody || !jobsRes || !jobsRes.data) return;
+
+    tbody.innerHTML = jobsRes.data.map(j => {
+      let statusBadge = "badge-gray";
+      if (j.status === "success") statusBadge = "badge-green";
+      else if (j.status === "partial") statusBadge = "badge-amber";
+      else if (j.status === "failed") statusBadge = "badge-rose";
+
+      const durationStr = (j.duration_seconds !== null && j.duration_seconds !== undefined) ? `${j.duration_seconds}s` : "--";
+      const itemsStr = (j.items_total) ? `${j.items_success || 0}成功 / ${j.items_failed || 0}失败 (共${j.items_total})` : "--";
+
+      return `
+        <tr class="hover:bg-slate-50 text-xs border-b border-slate-100 transition">
+          <td class="py-2.5 px-4 font-mono font-bold text-slate-800">${j.job_name}</td>
+          <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${statusBadge}">${j.status}</span></td>
+          <td class="py-2.5 px-4 font-mono text-slate-600">${durationStr}</td>
+          <td class="py-2.5 px-4 font-mono text-slate-600">${itemsStr}</td>
+          <td class="py-2.5 px-4 font-mono text-slate-500">${j.run_at}</td>
+          <td class="py-2.5 px-4 text-slate-700 max-w-sm truncate" title="${j.result_summary || ''}">${j.result_summary || '--'}</td>
+        </tr>
+      `;
+    }).join("");
+  },
+
+  async triggerManualJob() {
+    const btn = document.getElementById("btnManualTriggerRefresh");
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin mr-1">↻</span> 执行快照抓取中...`;
+    }
+
+    await API.triggerDataRefresh();
+    await this.loadDataJobsView();
+
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span>⚡ 立即执行全量快照</span>`;
+    }
   }
 };
 
