@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELOVNOVA 亚马逊数据体系工作台 - 依据会议手写草稿架构</title>
+  <script src="/tailwind.min.js"></script>
+  <script src="/echarts.min.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+  <!-- 顶部导航栏 -->
+  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-30 px-4 md:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-amber-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-lg font-bold text-white tracking-tight">ELOVNOVA 亚马逊数据体系</h1>
+          <span class="px-2 py-0.5 text-[11px] font-semibold rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            三类/四类穿透分析系统
+          </span>
+        </div>
+        <p class="text-xs text-slate-400">选品四大板块 · 成本贯穿 · 爆单补货与资金池测算</p>
+      </div>
+    </div>
+
+    <!-- SKU 快速切换与控制台 -->
+    <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+      <!-- 快速选择用户5个自有SKU -->
+      <div class="flex items-center gap-1.5 bg-slate-800/90 border border-indigo-500/40 rounded-lg p-1">
+        <span class="text-[11px] text-indigo-300 font-medium px-2">自有SKU:</span>
+        <select id="skuPresetSelect" class="bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-md px-2.5 py-1.5 focus:outline-none focus:border-indigo-400 font-semibold">
+          <option value="B0GYH8WT22">👑 LIU-B0GYH8WT22 / 刘总枕头</option>
+          <option value="B0GY2TDLTZ">🔘 ELOVNOVA-Gray / 江西灰色</option>
+          <option value="B0GY2WGTDM">🔵 ELOVNOVA-Blue / 江西蓝色</option>
+          <option value="B0HJWZM439">🌫️ NB-LP001-MG / 腰枕-灰石</option>
+          <option value="B0HJX1MGBF">🌑 NB-LP001-MSG / 腰枕-流星灰</option>
+        </select>
+      </div>
+
+      <!-- 站点选择 -->
+      <select id="marketplaceSelect" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-2 focus:outline-none focus:border-indigo-500 font-medium">
+        <option value="US" selected>🇺🇸 美国站 (US)</option>
+        <option value="JP">🇯🇵 日本站 (JP)</option>
+        <option value="DE">🇩🇪 德国站 (DE)</option>
+        <option value="UK">🇬🇧 英国站 (UK)</option>
+      </select>
+
+      <button id="analyzeBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition shadow-md shadow-indigo-600/30 flex items-center gap-1.5">
+        <svg id="btnIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        <span>刷新调取</span>
+      </button>
+
+      <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-medium px-3 py-2 rounded-lg transition" title="打印或保存为PDF">
+        导出报表
+      </button>
+    </div>
+  </header>
+
+  <!-- 全局加载状态遮罩 -->
+  <div id="loadingOverlay" class="hidden fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+    <div class="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+    <div class="mt-4 text-slate-200 font-medium text-sm">正在深入穿透卖家精灵三类/四类节点数据...</div>
+    <div class="mt-1 text-slate-400 text-xs">调取竞品前100同款销量、BSR走势与补货测算</div>
+  </div>
+
+  <!-- 主体内容 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 space-y-6">
+
+    <!-- 顶栏 KPI 核心指标卡片 -->
+    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+      <div class="kpi-card">
+        <div class="kpi-title">当前产品预估月销</div>
+        <div class="kpi-value text-emerald-400"><span id="kpiUnits">--</span> <span class="text-xs font-normal text-slate-400">件</span></div>
+        <div class="kpi-sub text-emerald-400" id="kpiUnitsChange">动销监控中</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">当前产品预估月销额</div>
+        <div class="kpi-value text-emerald-400" id="kpiRevenue">$--</div>
+        <div class="kpi-sub text-slate-400" id="kpiDailyRev">日均测算中</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">当前标价 / 折扣</div>
+        <div class="kpi-value text-amber-400" id="kpiPrice">$--</div>
+        <div class="kpi-sub text-amber-400/80" id="kpiCoupon">Coupon: 无</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">大类 BSR 排名</div>
+        <div class="kpi-value text-indigo-400" id="kpiBsr"># --</div>
+        <div class="kpi-sub text-indigo-300" id="kpiCategory">Home & Kitchen</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">评分与评价数</div>
+        <div class="kpi-value text-white" id="kpiRating">-- ★</div>
+        <div class="kpi-sub text-slate-400" id="kpiReviews">-- 评价</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">断货风险状态</div>
+        <div class="kpi-value text-rose-400 font-bold" id="kpiStockRisk">🚨 只够卖4天</div>
+        <div class="kpi-sub text-rose-400 font-semibold" id="kpiRiskTip">亮红灯: 需紧急补货</div>
+      </div>
+    </section>
+
+    <!-- 依据用户会议架构图设计的 4 大功能板块标签栏 -->
+    <div class="border-b border-slate-800 flex items-center space-x-2 md:space-x-4 text-xs md:text-sm font-medium overflow-x-auto pb-1">
+      <button onclick="switchTab('tab-myProduct')" id="btnTab-myProduct" class="tab-btn tab-active whitespace-nowrap">
+        ① 自有产品 & 前100同款竞品监测
+      </button>
+      <button onclick="switchTab('tab-marketAnalysis')" id="btnTab-marketAnalysis" class="tab-btn whitespace-nowrap">
+        ② 行业市场分析 (三类/四类大盘)
+      </button>
+      <button onclick="switchTab('tab-pipeline')" id="btnTab-pipeline" class="tab-btn whitespace-nowrap">
+        ③ 待开发产品 & 选品拓展 (U型/腰枕)
+      </button>
+      <button onclick="switchTab('tab-replenishment')" id="btnTab-replenishment" class="tab-btn whitespace-nowrap">
+        ④ 爆单补货测算 & 资金池抗风险
+      </button>
+    </div>
+
+    <!-- 板块 ①：自有产品分析 (在售款监测 · 三类穿透) -->
+    <div id="tab-myProduct" class="tab-content space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 价格变动与 BSR 走势图 -->
+        <div class="lg:col-span-2 chart-card">
+          <div class="chart-header">
+            <div>
+              <h2 class="chart-title">价格波动与 BSR 排名走势 (单个产品走势监控)</h2>
+              <p class="chart-desc">左轴为当前在售款标价（$），右轴为 BSR 排名（逆序：顶端为高排名）</p>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
+              三类细分深入调取
+            </span>
+          </div>
+          <div id="priceBsrChart" class="chart-box"></div>
+        </div>
+
+        <!-- 当前选中 SKU 规格画像卡片 -->
+        <div class="chart-card space-y-4">
+          <h2 class="chart-title">当前在售 SKU 画像</h2>
+          <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60 flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xl">
+              🛏️
+            </div>
+            <div class="flex-1 min-w-0">
+              <div id="curSkuName" class="text-xs font-bold text-white line-clamp-1">刘总枕头</div>
+              <div id="curSkuAsin" class="text-[11px] font-mono text-indigo-400">ASIN: B0GYH8WT22</div>
+              <div id="curSkuType" class="text-[11px] text-slate-400 line-clamp-1">Contour Memory Foam Pillow</div>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-xs">
+            <div class="flex justify-between py-1.5 border-b border-slate-800">
+              <span class="text-slate-400">品牌</span>
+              <span id="curSkuBrand" class="font-semibold text-slate-200">ELOVNOVA</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800">
+              <span class="text-slate-400">Parent ASIN</span>
+              <span id="curSkuParent" class="font-mono text-slate-300">B0GY2VPQPD</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800">
+              <span class="text-slate-400">四级类目节点</span>
+              <span id="curSkuNode" class="font-mono text-slate-400 text-[10px]">3732111 (Cervical)</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800">
+              <span class="text-slate-400">当前标价</span>
+              <span id="curSkuPrice" class="font-semibold text-amber-400">$45.99</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800">
+              <span class="text-slate-400">Amazon 直达</span>
+              <a id="curSkuLink" href="#" target="_blank" class="text-indigo-400 hover:underline">前台页面 ↗</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 同款前 100 名同款竞品监测榜 (重点模块) -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-2">
+          <div>
+            <h2 class="chart-title">前 100 名同款竞品销量与排名走势监控榜</h2>
+            <p class="chart-desc">针对该 SKU 所处细分品类（如蝴蝶枕/记忆棉枕/腰枕）实时调取同款头部竞品销量与价格结构</p>
+          </div>
+          <div class="text-xs px-2.5 py-1 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
+            实时调取竞品数据
+          </div>
+        </div>
+
+        <div class="overflow-x-auto mt-4">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-800/60 text-slate-400 uppercase text-[11px] border-b border-slate-700/60">
+              <tr>
+                <th class="py-3 px-4">竞品 ASIN</th>
+                <th class="py-3 px-4">竞品标题</th>
+                <th class="py-3 px-4">品牌</th>
+                <th class="py-3 px-4">标价 ($)</th>
+                <th class="py-3 px-4">大类 BSR</th>
+                <th class="py-3 px-4">月估销量 (件)</th>
+                <th class="py-3 px-4">评分 / 评价数</th>
+                <th class="py-3 px-4">操作</th>
+              </tr>
+            </thead>
+            <tbody id="competitorTableBody" class="divide-y divide-slate-800">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 板块 ②：行业市场分析 (二类/三类/四类大盘) -->
+    <div id="tab-marketAnalysis" class="tab-content hidden space-y-6">
+      <div class="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-500/30 text-xs text-slate-300 flex items-center justify-between">
+        <div>
+          <span class="font-bold text-indigo-400">💡 架构图业务说明：</span>
+          卖家精灵界面只能看到二类大盘，本店颈椎枕与腰枕属于三类/四类细分市场，系统已自动穿透至目标节点进行精准核算。
+        </div>
+        <span class="text-indigo-400 font-mono text-[11px]">节点: 1055398:1063252:1199122:3732111</span>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 价格带区间分布 (2 列) -->
+        <div class="lg:col-span-2 chart-card">
+          <div class="chart-header">
+            <div>
+              <h2 class="chart-title">细分品类价格带分布与机会区间</h2>
+              <p class="chart-desc">柱状展示在售产品数（竞争烈度），折线展示销量占比（市场真实买家需求）</p>
+            </div>
+          </div>
+          <div id="priceBracketChart" class="chart-box"></div>
+        </div>
+
+        <!-- 品牌集中度 (1 列) -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h2 class="chart-title">品牌市场份额集中度 (CR4 / CR8)</h2>
+              <p class="chart-desc">判断细分品类是属于头部品牌垄断还是多强分散格局</p>
+            </div>
+          </div>
+          <div id="brandConcentrationChart" class="chart-box"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 卖家国籍分布 -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h2 class="chart-title">卖家归属地分布 (中国卖家 vs 本土卖家)</h2>
+              <p class="chart-desc">分析该类目中中国跨境卖家与美国本土卖家的市场渗透比例</p>
+            </div>
+          </div>
+          <div id="sellerCountryChart" class="chart-box"></div>
+        </div>
+
+        <!-- 评分成熟度 -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h2 class="chart-title">类目评分值分布与成熟度</h2>
+              <p class="chart-desc">分析 4.5 分以上产品占比，评估该细分类目的退货率与品质改良空间</p>
+            </div>
+          </div>
+          <div id="ratingDistChart" class="chart-box"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 板块 ③：待开发产品 & 跨品类拓展 (U型枕/电动按摩枕/学习套装) -->
+    <div id="tab-pipeline" class="tab-content hidden space-y-6">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <h2 class="chart-title">待开发产品市场监测 (判断“能否做、做多少”)</h2>
+            <p class="chart-desc">针对会议讨论中计划开发的 U型枕、腰枕、电动按摩枕及跨品类新品进行容量与风险评估</p>
+          </div>
+          <span class="text-xs px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+            选品决策池
+          </span>
+        </div>
+
+        <div id="pipelineProductsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+          <!-- Dynamically populated cards -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 板块 ④：爆单补货测算 & 资金池抗风险 (完整还原手写/会议草稿测算模型) -->
+    <div id="tab-replenishment" class="tab-content hidden space-y-6">
+      
+      <!-- 参数配置与测算控制台 -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-2">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <span>🧮 爆单补货测算与资金池风险演算模型</span>
+              <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal">
+                目标变现 · 成本贯穿全程
+              </span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">支持按不同日销场景动态测算库存断货天数、空运应急补货需求与所需备货资金池</p>
+          </div>
+          <button id="recalcBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition">
+            重新演算
+          </button>
+        </div>
+
+        <!-- 输入参数网格 -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3.5 mt-4 text-xs">
+          <div>
+            <label class="text-slate-400 block mb-1">现有备货库存 (件)</label>
+            <input id="inputStock" type="number" value="200" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">爆单日销量 (件/天)</label>
+            <input id="inputDailySales" type="number" value="50" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-emerald-400 font-mono font-bold focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">海运到货周期 (天)</label>
+            <input id="inputSeaDays" type="number" value="30" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">批量备货总量 (件)</label>
+            <input id="inputBatchSize" type="number" value="10000" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">单件成本 (元/件)</label>
+            <input id="inputUnitCost" type="number" value="50" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-amber-400 font-mono font-bold focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">海运单价 (元/件)</label>
+            <input id="inputSeaRate" type="number" value="12" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-slate-300 font-mono focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">空运单价 (元/件)</label>
+            <input id="inputAirRate" type="number" value="45" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-rose-400 font-mono focus:border-indigo-500">
+          </div>
+        </div>
+      </div>
+
+      <!-- 演算核心展示卡片 (与用户图表 1:1 对应) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- 步骤 1: 断货天数测算 (红灯警报) -->
+        <div id="riskCard" class="p-5 rounded-2xl bg-slate-900/90 border border-rose-500/50 shadow-lg flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-rose-400">第一步 · 断货风险预警</span>
+              <span id="calcRiskBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300">🚨 亮红灯</span>
+            </div>
+            <div class="mt-3 flex items-center justify-between text-slate-300 text-xs py-1 border-b border-slate-800">
+              <span>现有备货:</span> <span id="resStock" class="font-mono text-white font-bold">200 个</span>
+            </div>
+            <div class="flex items-center justify-between text-slate-300 text-xs py-1 border-b border-slate-800">
+              <span>爆单日销:</span> <span id="resDailySales" class="font-mono text-white font-bold">50 个/天</span>
+            </div>
+            <div class="mt-4 p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-center">
+              <div class="text-xs text-rose-300">现有库存仅能够销售</div>
+              <div class="text-3xl font-extrabold text-rose-400 my-1"><span id="resDays">4</span> <span class="text-sm font-normal">天</span></div>
+              <div class="text-[11px] text-rose-300 font-semibold" id="resRiskDetail">⚠️ 极度高危：面临断货风险！</div>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800">
+            公式：现有备货 200 ÷ 日销量 50 = 4天
+          </div>
+        </div>
+
+        <!-- 步骤 2: 补货策略与空运应急 (填补断货窗口) -->
+        <div class="p-5 rounded-2xl bg-slate-900/90 border border-amber-500/40 shadow-lg flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-amber-400">第二步 · 补货周期与紧急空运</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">周期核算</span>
+            </div>
+            <div class="mt-3 flex items-center justify-between text-slate-300 text-xs py-1 border-b border-slate-800">
+              <span>海运周期:</span> <span id="resSeaDays" class="font-mono text-white font-bold">30 天 (慢但便宜)</span>
+            </div>
+            <div class="flex items-center justify-between text-slate-300 text-xs py-1 border-b border-slate-800">
+              <span>海运周期内需备:</span> <span id="resSeaRequired" class="font-mono text-amber-400 font-bold">1,500 个</span>
+            </div>
+            <div class="mt-4 p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-center">
+              <div class="text-xs text-amber-300">海运到货前断货缺口窗口</div>
+              <div class="text-3xl font-extrabold text-amber-400 my-1"><span id="resGapDays">26</span> <span class="text-sm font-normal">天</span></div>
+              <div class="text-[11px] text-amber-300 font-semibold">需安排 <span id="resAirUnits" class="font-bold text-white">1,300</span> 件紧急空运补货</div>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800">
+            公式：海运周期30天 × 日销50 = 1,500个 (扣除现有4天备货)
+          </div>
+        </div>
+
+        <!-- 步骤 3: 综合资金池测算 (货款 + 运费) -->
+        <div class="p-5 rounded-2xl bg-slate-900/90 border border-emerald-500/40 shadow-lg flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-emerald-400">第三步 · 成本财务与准备资金池</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">资金安全</span>
+            </div>
+            <div class="mt-3 flex items-center justify-between text-slate-300 text-xs py-1 border-b border-slate-800">
+              <span>批量大货货款 (1万件 × 50元):</span> <span id="resGoodsCost" class="font-mono text-white font-bold">50.0 万元</span>
+            </div>
+            <div class="flex items-center justify-between text-slate-300 text-xs py-1 border-b border-slate-800">
+              <span>综合运费 (海运 + 应急空运):</span> <span id="resShippingCost" class="font-mono text-emerald-400 font-bold">16.3 万元</span>
+            </div>
+            <div class="mt-4 p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-center">
+              <div class="text-xs text-emerald-300">合计约需准备运营流动资金池</div>
+              <div class="text-3xl font-extrabold text-emerald-400 my-1" id="resTotalCapital">100.0 万元</div>
+              <div class="text-[11px] text-emerald-300 font-semibold">确保供应链资金不断链</div>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800">
+            公式：货款 50万 + 综合运费 = 需备资金池
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 灰色枕头案例警示条 -->
+      <div class="p-4 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 flex items-center gap-3">
+        <div class="text-2xl">💡</div>
+        <div class="text-xs text-slate-300">
+          <span class="font-bold text-amber-400">灰色枕头案例经验总结：</span>
+          “补多少货 ➔ 运费（补少则单位运费高、极不划算；补多则需平衡资金占用）”。必须通过该模型在海运大货与应急空运之间找到单位履约成本的最优平衡点。
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="bg-slate-900/80 border-t border-slate-800 py-4 px-8 text-center text-xs text-slate-500">
+    ELOVNOVA 亚马逊数据体系工作台 · 依据 2026-09-09 会议讨论草稿搭建 · 卖家精灵 MCP 官方服务驱动
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
