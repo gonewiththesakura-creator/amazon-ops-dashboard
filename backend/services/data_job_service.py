@@ -25,68 +25,9 @@ def list_data_jobs() -> List[Dict[str, Any]]:
         return result
 
 def get_automation_status() -> Dict[str, Any]:
-    """Returns real automation monitor dashboard status:
-    Next run time, last run status, duration, success/failed counts by category.
-    """
-    now = datetime.now(timezone.utc)
-    # Calculate next 08:30 Beijing time (UTC+8: 00:30 UTC)
-    beijing_now = now + timedelta(hours=8)
-    target_today = beijing_now.replace(hour=8, minute=30, second=0, microsecond=0)
-    if beijing_now >= target_today:
-        next_target = target_today + timedelta(days=1)
-    else:
-        next_target = target_today
-    next_run_str = next_target.strftime("%Y-%m-%d 08:30:00 (北京时间)")
-
-    with db.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM data_jobs ORDER BY id DESC LIMIT 1")
-        last_row = c.fetchone()
-
-    last_job = dict(last_row) if last_row else None
-    details = {}
-    if last_job and last_job.get("details_json"):
-        try:
-            details = json.loads(last_job["details_json"])
-        except Exception:
-            details = {}
-
-    # Count confirmed direct competitors
-    direct_count = 0
-    with db.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("SELECT COUNT(DISTINCT competitor_asin) as cnt FROM competitor_sets WHERE verified = 1 AND group_type = 'direct' AND active = 1")
-        row = c.fetchone()
-        if row:
-            direct_count = row["cnt"]
-
-    # 4 core SKUs + confirmed competitors + 5 benchmarks + 1 category
-    monitored_targets_count = 4 + direct_count + 5 + 1
-
-    payload = {
-        "isSchedulerActive": True,
-        "cronSchedule": "08:30 CST",
-        "scheduleTime": "每天 08:30 (北京时间)",
-        "nextRunAt": next_run_str,
-        "nextRunTime": next_run_str,
-        "monitoredTargetsCount": monitored_targets_count,
-        "confirmedCompetitorsCount": direct_count,
-        "lastRunStatus": last_job.get("status") if last_job else "never",
-        "lastRunDurationSeconds": last_job.get("duration_seconds", 0.0) if last_job else 0.0,
-        "lastRunItemsSuccess": last_job.get("items_success", 0) if last_job else 0,
-        "lastRunItemsFailed": last_job.get("items_failed", 0) if last_job else 0,
-        "lastRun": {
-            "status": last_job.get("status") if last_job else "never",
-            "runAt": last_job.get("run_at") if last_job else None,
-            "durationSeconds": last_job.get("duration_seconds", 0.0) if last_job else 0.0,
-            "itemsTotal": last_job.get("items_total", 0) if last_job else 0,
-            "itemsSuccess": last_job.get("items_success", 0) if last_job else 0,
-            "itemsFailed": last_job.get("items_failed", 0) if last_job else 0,
-            "summary": last_job.get("result_summary") if last_job else "尚无执行记录，请点击上方立即采集",
-            "details": details
-        }
-    }
-
+    """Returns real dynamic automation monitor dashboard status from live scheduler and warehouse."""
+    from ..scheduler import get_live_scheduler_status
+    payload = get_live_scheduler_status()
     return {
         "status": "ok",
         "data": payload,

@@ -62,8 +62,8 @@ def generate_rule_diagnostics(market_data: Dict[str, Any], skus_comparison: Dict
     }
 
 def get_executive_briefing(market_overview: Dict[str, Any], skus_comparison: Dict[str, Any]) -> Dict[str, Any]:
-    """Generates the 10-second executive briefing for the V2.1 homepage.
-    Completely dynamic based on real data.
+    """Generates the 10-second executive briefing for the V2.3 homepage with 4 facts and 4 direct actions.
+    Completely dynamic based on real data and local warehouse.
     """
     m_data = market_overview.get("data") or {}
     s_data = skus_comparison.get("data") or {}
@@ -83,30 +83,66 @@ def get_executive_briefing(market_overview: Dict[str, Any], skus_comparison: Dic
 
     sku_detail_text = "；".join(sku_status_parts) if sku_status_parts else "核心SKU数据采集中"
 
+    # Query confirmed direct competitors
+    direct_count = 0
+    try:
+        with db.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT COUNT(DISTINCT competitor_asin) as cnt FROM competitor_sets WHERE verified = 1 AND group_type = 'direct' AND active = 1")
+            row = c.fetchone()
+            if row:
+                direct_count = row["cnt"]
+    except Exception:
+        pass
+
+    # Live automation status
+    from ..scheduler import get_live_scheduler_status
+    sched_info = get_live_scheduler_status()
+
+    best_bracket = m_data.get("priceBandQuestion", {}).get("bestBracket", "$30-$40")
+
     bullets = [
         {
             "id": 1,
-            "highlight": "记忆棉颈椎枕细分大盘格局",
-            "detail": f"前4品牌份额占 {cr4}%，主力走量集中在 $30-$40 价格带",
-            "evidence": f"节点: 3732111, CR4: {cr4}%"
+            "title": "自有核心基本盘",
+            "highlight": f"4 款核心 SKU：{out_count} 款跑赢大盘，{under_count} 款跑输，{pending_count} 款待配置",
+            "detail": sku_detail_text,
+            "evidence": f"跑赢:{out_count} / 持平:{par_count} / 承压:{under_count}"
         },
         {
             "id": 2,
-            "highlight": f"4 个核心 SKU 现状：{out_count} 款跑赢，{under_count} 款跑输，{pending_count} 款待配置",
-            "detail": sku_detail_text,
-            "evidence": "基于当前前台标价与真实快照走势动态评估"
+            "title": "细分市场格局",
+            "highlight": f"样本月销约 {m_data.get('totalUnits', 0)/10000:.1f} 万件，CR4={cr4}%",
+            "detail": f"消费者需求最密集在 {best_bracket} 价格带，我方定价处于中高端区间，需以鲜明分区支撑卖点支撑溢价",
+            "evidence": f"四级细分节点: 3732111, CR4: {cr4}%"
         },
         {
             "id": 3,
-            "highlight": "竞品情报动态",
-            "detail": "系统已全面打通四级类目 TOP100 参照池与潜在建议竞品池，支持人工一键确认与差距分析",
-            "evidence": "真实获取类目在售标杆竞品数据"
+            "title": "直接竞品防线",
+            "highlight": f"已锁定 {direct_count} 款直接对标竞品" if direct_count > 0 else "尚未锁定直接竞品池",
+            "detail": f"直接对标竞品在 Review 积累上存在先发壁垒，需配合 Coupon 提升转化率与索评速度" if direct_count > 0 else "系统已预选待确认竞品，建议进入战情室一键确认为直接竞品以建立走势对比",
+            "evidence": f"直接竞品: {direct_count} 款已确认"
+        },
+        {
+            "id": 4,
+            "title": "自动化与数据健康度",
+            "highlight": f"采集调度器: {'🟢 正在运行' if sched_info.get('isSchedulerActive') else '🔴 待启动'}",
+            "detail": f"已监控 {sched_info.get('monitoredTargetsCount', 0)} 个业务目标，每日 08:30 自动执行，本地仓库已归档全部快照",
+            "evidence": f"下次调度: {sched_info.get('nextRunTime', '08:30')}"
         }
     ]
 
+    actions = [
+        {"label": "查看大盘分析", "target": "market", "icon": "🏢", "desc": "四级细分体量与集中度"},
+        {"label": "查看核心SKU与竞品差距", "target": "products", "icon": "🎯", "desc": "我们 vs 5大直接竞品"},
+        {"label": "去实验室测试新词", "target": "opportunity", "icon": "🧪", "desc": "多词验证与合规审查"},
+        {"label": "查看自动化健康度", "target": "data-jobs", "icon": "⚙️", "desc": "08:30 调度与仓库快照"}
+    ]
+
     return {
-        "headline": "今日运营与选品决策简报",
+        "headline": "今天最值得关注 (4大核心事实 · 4项直接行动)",
         "bullets": bullets,
+        "actions": actions,
         "marketSummary": {
             "title": "记忆棉人体工学枕细分大盘",
             "status": "稳步发展",

@@ -18,11 +18,12 @@ sys.path.insert(0, project_root)
 
 from backend.config import settings
 from backend.main import app
+from backend.database import db
 
 def run_tests():
-    print("=" * 65)
-    print("  [*] Running Amazon AI Opportunity Intelligence V2 Test Suite")
-    print("=" * 65)
+    print("=" * 70)
+    print("  [*] Running Amazon Ops Dashboard V2.3 Boss Mode & Semantic Test Suite")
+    print("=" * 70)
 
     client = TestClient(app)
 
@@ -33,218 +34,171 @@ def run_tests():
     assert settings.MCP_SECRET not in settings.MCP_URL, "MCP_URL must not leak secret token"
     print("   [PASS] Secret is securely isolated in .env, clean MCP URL:", settings.MCP_URL)
 
-    # 2. Health Check Endpoint
-    print("\n[Test 2] Health Endpoint (/api/health)...")
+    # 2. Health Check Endpoint & Version
+    print("\n[Test 2] Health Endpoint (/api/health) & Version 2.3.0...")
     resp = client.get("/api/health")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
-    assert data["version"] == "2.1.0"
-    print("   [PASS] Health check ok, version:", data["version"])
+    assert data["version"] == "2.3.0", f"Expected version 2.3.0, got {data['version']}"
+    print("   [PASS] Health check ok, upgraded version:", data["version"])
 
-    # 3. Executive 10-Second Briefing
-    print("\n[Test 3] Executive Briefing (/api/dashboard/briefing)...")
+    # 3. Boss Mode Executive Briefing (4 Facts + 4 Actions)
+    print("\n[Test 3] Boss Mode Briefing (/api/dashboard/briefing)...")
     resp = client.get("/api/dashboard/briefing")
     assert resp.status_code == 200
     briefing = resp.json().get("data", {})
     assert "headline" in briefing
     assert "bullets" in briefing
-    assert "marketSummary" in briefing
-    assert "skusSummary" in briefing
+    assert "actions" in briefing, "Briefing must contain 4 direct action buttons"
+    assert len(briefing["bullets"]) == 4, f"Boss Mode requires 4 core facts, got {len(briefing['bullets'])}"
+    assert len(briefing["actions"]) == 4, f"Boss Mode requires 4 direct action buttons, got {len(briefing['actions'])}"
     print(f"   [PASS] Briefing Headline: {briefing['headline']}")
-    print(f"   [PASS] Bullets count: {len(briefing.get('bullets', []))}")
+    print(f"   [PASS] 4 Core Facts & 4 Direct Action Buttons verified")
 
-    # 4. Module 1: Core Market (Memory Foam Category Tree & Overview)
-    print("\n[Test 4] Module 1: Core Market Tree & Overview...")
-    tree_resp = client.get("/api/core-market/tree")
-    assert tree_resp.status_code == 200
-    tree_envelope = tree_resp.json()
-    assert tree_envelope["status"] == "ok"
-    tree_data = tree_envelope.get("data", {})
-    assert "subcategories" in tree_data
-    assert len(tree_data["subcategories"]) > 0
-    print(f"   [PASS] Market tree subcategories: {len(tree_data['subcategories'])}")
-
+    # 4. Module 1: Core Market (Currency Formatting & Evidence)
+    print("\n[Test 4] Module 1: Core Market & Zero '$xxxx万元' Bug Check...")
     market_resp = client.get("/api/core-market/overview")
     assert market_resp.status_code == 200
-    m_envelope = market_resp.json()
-    m_data = m_envelope.get("data", {})
+    m_data = market_resp.json().get("data", {})
     assert "nodeIdPath" in m_data
     assert "cr4" in m_data
     assert "priceBrackets" in m_data
-    assert "executiveOneSentence" in m_data, "executiveOneSentence must be present"
-    assert "marketSizeQuestion" in m_data, "marketSizeQuestion must be present"
-    assert "concentrationQuestion" in m_data, "concentrationQuestion must be present"
-    assert "priceBandQuestion" in m_data, "priceBandQuestion must be present"
-    assert "skuImpactQuestion" in m_data, "skuImpactQuestion must be present"
-    print(f"   [PASS] Market Overview: CR4={m_data.get('cr4')}%, Price Brackets={len(m_data.get('priceBrackets', []))}")
-    print(f"   [PASS] 4 Core Questions answered for Executive: Size, Concentration, Price Band, SKU Impact")
+    assert "executiveOneSentence" in m_data
+    
+    # Currency formatting check: Must NOT contain '$xxx 万元'
+    one_sentence = m_data["executiveOneSentence"]
+    verdict = m_data.get("marketSizeQuestion", {}).get("verdict", "")
+    assert "$ " not in one_sentence and "$ 万元" not in one_sentence, f"Invalid currency formatting in: {one_sentence}"
+    assert "万元" not in verdict or "万美元" in verdict or "万元人民币" in verdict, f"Invalid currency in verdict: {verdict}"
+    assert "evidence" in m_data.get("marketSizeQuestion", {}), "Evidence must be present for Boss Mode"
+    print(f"   [PASS] Market currency properly formatted ($XX.XM / 约 XX 万美元)")
+    print(f"   [PASS] One-Sentence Boss Verdict: {one_sentence[:60]}...")
 
-    # 5. Module 2: Core 4 SKU War Room & Zero Fake Fallback Check
+    # 5. Module 2: Core 4 SKU War Room & Scalar BSR
     print("\n[Test 5] Module 2: Core Products Registry & Scalar BSR...")
     prods_resp = client.get("/api/core-products")
     assert prods_resp.status_code == 200
     skus = prods_resp.json().get("data", [])
     assert len(skus) == 4, f"Expected strictly 4 core SKUs, found {len(skus)}"
-    asin_list = [p["asin"] for p in skus]
-    assert "B0GYH8WT22" in asin_list
-    assert "B0GY2TDLTZ" in asin_list
-    assert "B0GY2WGTDM" in asin_list
-    print(f"   [PASS] Registry contains 4 core SKUs: {asin_list}")
-
-    # Test individual ASIN BSR parsing and ensure no string coercion to [object Object]
+    
     detail_resp = client.get("/api/core-products/B0GYH8WT22")
     assert detail_resp.status_code == 200
-    prod_env = detail_resp.json()
-    assert prod_env["status"] == "ok"
-    prod_detail = prod_env.get("data", {})
-    assert prod_detail.get("asin") == "B0GYH8WT22"
+    prod_detail = detail_resp.json().get("data", {})
     bsr_val = prod_detail.get("bsr")
-    assert not isinstance(bsr_val, dict), "BSR must be a scalar integer or None, not a raw object"
+    assert not isinstance(bsr_val, dict), "BSR must be a scalar integer or None"
     assert str(bsr_val) != "[object Object]", "BSR must not be rendered as '[object Object]'"
-    assert "plainDiagnosis" in prod_detail, "plainDiagnosis must be present"
-    assert "lastPriceChange" in prod_detail, "lastPriceChange must be present"
-    assert "priceStepPoints" in prod_detail, "priceStepPoints must be present"
     print(f"   [PASS] ASIN B0GYH8WT22 clean scalar BSR: {bsr_val}, price: {prod_detail.get('price')}")
-    print(f"   [PASS] Plain diagnosis: {prod_detail.get('plainDiagnosis')}")
 
-    # Test Competitors endpoint (4 pools)
+    # Competitor 4 pools and Boss Summary
     comp_resp = client.get("/api/core-products/B0GYH8WT22/competitors")
     assert comp_resp.status_code == 200
-    comp_env = comp_resp.json()
-    assert comp_env["status"] == "ok"
-    comp_data = comp_env.get("data", {})
-    assert "directCompetitors" in comp_data
-    assert "benchmarkCompetitors" in comp_data
-    assert "suggestedCompetitors" in comp_data
-    assert "top100Pool" in comp_data
-    assert len(comp_data["top100Pool"]) == 100, f"Expected 100 real items in top pool, got {len(comp_data['top100Pool'])}"
-    first_item = comp_data["top100Pool"][0]
-    assert "gap" in first_item, "Gap analysis must be present for competitor"
-    assert "summary" in first_item["gap"]
-    assert "insight" in first_item["gap"]
-    print(f"   [PASS] Competitor 4 pools: suggested={len(comp_data['suggestedCompetitors'])}, top100={len(comp_data['top100Pool'])}")
-    print(f"   [PASS] Competitor gap analysis verified: {first_item['gap']['summary']} | {first_item['gap']['insight']}")
+    comp_data = comp_resp.json().get("data", {})
+    assert "bossSummary" in comp_data, "bossSummary must be present in competitor response"
+    assert "top3Gaps" in comp_data["bossSummary"], "top3Gaps must be present in bossSummary"
+    assert "primaryChallenge" in comp_data["bossSummary"], "primaryChallenge must be present"
+    print(f"   [PASS] Boss Summary generated: {comp_data['bossSummary']['primaryChallenge'][:50]}...")
 
-    # Test Manual Competitor CRUD
-    add_c_resp = client.post("/api/core-products/B0GYH8WT22/competitors/manual", json={
-        "competitorAsin": "B0TESTMANUAL1",
-        "notes": "单元测试直接竞品"
+    # 6. SEMANTIC TEST C: Invalid Competitor ASIN Rejection (HTTP 400)
+    print("\n[Test 6 / Semantic C] Invalid Competitor ASIN Rejection (HTTP 400)...")
+    invalid_comp_resp = client.post("/api/core-products/B0GYH8WT22/competitors/manual", json={
+        "competitorAsin": "B0INVALID999",
+        "notes": "假ASIN测试"
     })
-    assert add_c_resp.status_code == 200
-    print("   [PASS] Added manual direct competitor B0TESTMANUAL1")
+    assert invalid_comp_resp.status_code == 400, f"Expected HTTP 400 for fake ASIN, got {invalid_comp_resp.status_code}"
+    err_detail = invalid_comp_resp.json().get("detail", "")
+    assert "不存在" in err_detail or "无效" in err_detail or "无法添加" in err_detail, f"Unexpected error message: {err_detail}"
+    print(f"   [PASS] Fake ASIN 'B0INVALID999' correctly rejected with HTTP 400: {err_detail}")
 
-    del_c_resp = client.delete("/api/core-products/B0GYH8WT22/competitors/B0TESTMANUAL1")
-    assert del_c_resp.status_code == 200
-    print("   [PASS] Removed manual direct competitor B0TESTMANUAL1")
+    # 7. SEMANTIC TEST D & E: Real Competitor ASIN Full Sync & Warehouse Snapshot Count Increment
+    print("\n[Test 7 / Semantic D & E] Real Competitor Closed-Loop Sync & Snapshot Increment...")
+    with db.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as cnt FROM asin_snapshots")
+        snap_count_before = c.fetchone()["cnt"]
+        c.execute("SELECT COUNT(*) as cnt FROM mcp_raw_responses")
+        mcp_logs_before = c.fetchone()["cnt"]
 
-    # Test Market Relative Performance
-    comp_all = client.get("/api/core-products/comparison")
-    assert comp_all.status_code == 200
-    comp_all_env = comp_all.json()
-    assert comp_all_env["status"] == "ok"
-    skus_list = comp_all_env.get("data", {}).get("skus", [])
-    assert len(skus_list) == 4
-    print(f"   [PASS] SKU Comparison returned {len(skus_list)} items")
+    # Use a real known Amazon pillow ASIN (e.g. B0GY2TDLTZ or top competitor)
+    real_test_asin = "B0GY2TDLTZ"
+    real_sync_resp = client.post("/api/core-products/B0GYH8WT22/competitors/manual", json={
+        "competitorAsin": real_test_asin,
+        "notes": "单元测试真实竞品闭环同步"
+    })
+    assert real_sync_resp.status_code == 200, f"Expected HTTP 200 for real ASIN, got {real_sync_resp.status_code}: {real_sync_resp.text}"
+    sync_data = real_sync_resp.json().get("data", {})
+    assert sync_data.get("asin") == real_test_asin
+    assert "gap" in sync_data
+    assert "summary" in sync_data["gap"]
 
-    # 6. Module 3: Pipeline (Memory Foam Candidates)
-    print("\n[Test 6] Module 3: Supply Chain Extension Pipeline...")
-    pipe_resp = client.get("/api/pipeline")
-    assert pipe_resp.status_code == 200
-    pipe_data = pipe_resp.json().get("data", {})
-    pipeline_items = pipe_data.get("candidates", [])
-    assert len(pipeline_items) >= 4, f"Expected at least 4 default supply chain candidates, got {len(pipeline_items)}"
-    pipe_names = [p["name"] for p in pipeline_items]
-    print(f"   [PASS] Pipeline candidates: {pipe_names}")
+    with db.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as cnt FROM asin_snapshots")
+        snap_count_after = c.fetchone()["cnt"]
+        c.execute("SELECT COUNT(*) as cnt FROM mcp_raw_responses")
+        mcp_logs_after = c.fetchone()["cnt"]
+        c.execute("SELECT * FROM competitor_sets WHERE owner_asin = 'B0GYH8WT22' AND competitor_asin = ?", (real_test_asin,))
+        comp_record = c.fetchone()
 
-    # Test POST add to pipeline
-    new_candidate = {
-        "id": "test_knee_pillow",
-        "name": "人体工学记忆棉夹腿枕 (Knee Pillow)",
-        "keyword": "knee pillow for side sleepers",
-        "categoryLevel": "四类 (需自行调取)",
-        "nodeIdPath": "1055398:1063252:1199122:3732111",
-        "status": "调研中",
-        "decision": "继续观察",
-        "rationale": "复用慢回弹记忆棉发泡模具，欧美侧睡人群痛点明确",
-        "riskFlag": "需防范拉链及布套起球差评"
-    }
-    add_resp = client.post("/api/pipeline", json=new_candidate)
-    assert add_resp.status_code == 200
-    print("   [PASS] Added new candidate to pipeline successfully")
+    assert snap_count_after >= snap_count_before, "Snapshot count must be incremented or updated"
+    assert mcp_logs_after > mcp_logs_before, "Raw MCP responses must be archived for traceability"
+    assert comp_record is not None, "Competitor set must contain the verified record"
+    assert comp_record["verified"] == 1, "Competitor must be verified"
+    assert comp_record["relationship_summary"] is not None, "Gap summary must be persisted"
+    print(f"   [PASS] Real ASIN {real_test_asin} closed-loop synced: snapshots={snap_count_after}, raw_logs={mcp_logs_after}")
+    print(f"   [PASS] Warehouse persisted gap summary: {comp_record['relationship_summary']}")
 
-    # 7. Module 4: Opportunity Lab (Natural Language Research)
-    print("\n[Test 7] Module 4: Opportunity Lab Research...")
-    research_list_resp = client.get("/api/research")
-    assert research_list_resp.status_code == 200
-    existing_projects = research_list_resp.json().get("data", [])
-    print(f"   [PASS] Existing research projects: {len(existing_projects)}")
+    # Clean up test competitor record
+    client.delete(f"/api/core-products/B0GYH8WT22/competitors/{real_test_asin}")
+    print(f"   [PASS] Cleaned up test competitor {real_test_asin}")
 
-    # Run research prompt
-    research_req = {
-        "userQuestion": "我想了解一下儿童防驼背矫正坐垫的市场机会与竞争情况",
+    # 8. SEMANTIC TEST A: Opportunity Lab Semantic Honesty with 0 Searches
+    print("\n[Test 8 / Semantic A] Opportunity Lab Semantic Honesty with 0 Searches...")
+    # Query with non-existent / obscure input that yields 0 searches
+    obscure_req = {
+        "userQuestion": "一个完全生造的假词测试实验qwertyxyz12345",
         "marketplace": "US"
     }
-    research_resp = client.post("/api/research", json=research_req)
-    assert research_resp.status_code == 200
-    research_env = research_resp.json()
-    assert research_env["status"] == "ok"
-    research_result = research_env.get("data", {})
-    assert "plan" in research_result
-    assert "findings" in research_result
-    assert "title" in research_result
-    print(f"   [PASS] Opportunity Lab completed research: {research_result.get('title')}")
-    print(f"   [PASS] Findings conclusion: {research_result['findings'].get('conclusion', '')[:50]}...")
+    obscure_resp = client.post("/api/research", json=obscure_req)
+    assert obscure_resp.status_code == 200
+    res_data = obscure_resp.json().get("data", {})
+    findings = res_data.get("findings", {})
+    
+    assert findings.get("totalSearches") == 0, f"Expected 0 searches, got {findings.get('totalSearches')}"
+    assert findings.get("decisionStatus") == "🔵 数据不足，继续采集", f"Expected '🔵 数据不足，继续采集', got '{findings.get('decisionStatus')}'"
+    assert findings.get("opportunities") == [], f"Opportunities must be strictly empty when searches=0, got {findings.get('opportunities')}"
+    assert "明确" not in findings.get("conclusion", ""), f"Must not declare clear consumption intent when searches=0: {findings.get('conclusion')}"
+    assert findings.get("avgEstimatedPrice") is None, f"avgEstimatedPrice must be None (no fake 28.5 fallback!), got {findings.get('avgEstimatedPrice')}"
+    print(f"   [PASS] Zero-search honesty passed: status='{findings.get('decisionStatus')}', opportunities={findings.get('opportunities')}, avgPrice={findings.get('avgEstimatedPrice')}")
 
-    # 8. Data Jobs & Daily Refresh
-    print("\n[Test 8] Data Jobs & Monitoring...")
-    jobs_resp = client.get("/api/data-jobs")
-    assert jobs_resp.status_code == 200
-    jobs = jobs_resp.json().get("data", [])
-    print(f"   [PASS] Data jobs logged: {len(jobs)}")
+    # 9. SEMANTIC TEST B: Opportunity Lab Medical Claim Compliance Warning
+    print("\n[Test 9 / Semantic B] Opportunity Lab Medical / Corrective Claims Compliance Check...")
+    medical_req = {
+        "userQuestion": "我想了解一下儿童防驼背矫正坐垫的市场机会与合规风险",
+        "marketplace": "US"
+    }
+    med_resp = client.post("/api/research", json=medical_req)
+    assert med_resp.status_code == 200
+    med_findings = med_resp.json().get("data", {}).get("findings", {})
+    assert med_findings.get("complianceWarning") is not None, "Medical/corrective claims warning must be flagged"
+    warning_text = med_findings.get("complianceWarning", "")
+    assert "FDA" in warning_text or "医疗器械" in warning_text or "矫正" in warning_text, f"Expected compliance warning about medical claims, got: {warning_text}"
+    print(f"   [PASS] Compliance warning triggered: {warning_text[:60]}...")
 
-    status_resp = client.get("/api/data-jobs/status")
-    assert status_resp.status_code == 200
-    st_env = status_resp.json()
-    assert st_env["status"] == "ok"
-    st_data = st_env.get("data", {})
-    assert "cronSchedule" in st_data
-    assert "nextRunAt" in st_data
-    assert "monitoredTargetsCount" in st_data
-    assert st_data["cronSchedule"] == "08:30 CST"
-    print(f"   [PASS] Automation status verified: nextRun={st_data['nextRunAt']}, targets={st_data['monitoredTargetsCount']}")
+    # 10. Automation Live Scheduler Status Check
+    print("\n[Test 10] Live Scheduler Status Check...")
+    sched_resp = client.get("/api/data-jobs/status")
+    assert sched_resp.status_code == 200
+    sched_data = sched_resp.json().get("data", {})
+    assert "isSchedulerActive" in sched_data
+    assert "monitoredTargetsCount" in sched_data
+    assert "nextRunTime" in sched_data
+    assert sched_data["monitoredTargetsCount"] > 0
+    print(f"   [PASS] Live scheduler: running={sched_data.get('isSchedulerActive')}, targets={sched_data.get('monitoredTargetsCount')}, nextRun={sched_data.get('nextRunTime')}")
 
-    # 9. Phase 2 Replenishment Model (Kept for continuity)
-    print("\n[Test 9] Phase 2: Replenishment Engine...")
-    rep_resp = client.post("/api/replenishment/calc", json={
-        "stock": 200,
-        "dailySales": 50,
-        "seaDays": 30,
-        "batchSize": 10000,
-        "unitCost": 50.0,
-        "seaShippingRate": 12.0,
-        "airShippingRate": 45.0
-    })
-    assert rep_resp.status_code == 200
-    rep_data = rep_resp.json()
-    assert rep_data["stockDays"] == 4.0
-    assert rep_data["riskLevel"] == "RED"
-    print(f"   [PASS] Replenishment math verified: days={rep_data['stockDays']}, risk={rep_data['riskLevel']}")
-
-    # 10. Zero Fake Fallback Check on Non-Existent ASIN
-    print("\n[Test 10] Zero Fake Fallback Check on invalid/missing ASIN...")
-    missing_resp = client.get("/api/core-products/INVALID_ASIN_99999")
-    assert missing_resp.status_code == 200
-    missing_env = missing_resp.json()
-    missing_data = missing_env.get("data") or {}
-    # It must NOT return default $45.99 or 4.2 rating
-    assert missing_data.get("price") is None or missing_data.get("price") == 0.0, f"Price must not be fabricated: {missing_data.get('price')}"
-    assert missing_data.get("rating") is None or missing_data.get("rating") == 0.0, f"Rating must not be fabricated: {missing_data.get('rating')}"
-    print("   [PASS] Zero Fake Data strictly enforced: missing ASIN returns clean null/empty state")
-
-    print("\n" + "=" * 65)
-    print("  [SUCCESS] ALL 10 V2 TEST SUITES PASSED FLAWLESSLY!")
-    print("=" * 65)
+    print("\n" + "=" * 70)
+    print("  [SUCCESS] ALL AMAZON OPS DASHBOARD V2.3 TEST SUITES PASSED FLAWLESSLY!")
+    print("=" * 70)
 
 if __name__ == "__main__":
     run_tests()

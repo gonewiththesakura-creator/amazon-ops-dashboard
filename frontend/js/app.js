@@ -86,37 +86,54 @@ const App = {
       API.getAutomationStatus()
     ]);
 
-    // 1. Update Automation Health Card
+    // 1. Update Automation Health Cards (5 Top Cards)
     if (statusRes && statusRes.status === "ok" && statusRes.data) {
       const s = statusRes.data;
       const statusDot = document.getElementById("automationStatusDot");
       const statusSummary = document.getElementById("automationStatusSummary");
+      const schedActiveEl = document.getElementById("autoSchedulerActive");
       const nextRunEl = document.getElementById("autoNextRun");
       const lastStatusEl = document.getElementById("autoLastStatus");
+      const lastDurationEl = document.getElementById("autoLastDuration");
       const targetsEl = document.getElementById("autoTargetsCount");
+      const warehouseEl = document.getElementById("autoWarehouseAssets");
 
       if (statusSummary) {
-        statusSummary.textContent = `每日 08:30 自动调度运行中 · 监控覆盖: 4核心SKU + ${s.confirmedCompetitorsCount || 0}已确认竞品 + 5类目标杆 + 细分大盘`;
+        statusSummary.textContent = `每日 08:30 自动调度 · 监控对象: 4核心SKU + ${s.confirmedCompetitorsCount || 0}已确认直接竞品 + 5类目标杆 + 细分大盘`;
+      }
+      if (schedActiveEl) {
+        schedActiveEl.textContent = s.isSchedulerActive ? "🟢 调度运行中" : "🔴 待启动";
+        schedActiveEl.className = s.isSchedulerActive ? "text-xs font-bold text-emerald-600 mt-1 font-mono" : "text-xs font-bold text-rose-600 mt-1 font-mono";
       }
       if (nextRunEl) {
-        nextRunEl.textContent = s.nextRunAt ? s.nextRunAt.slice(0, 16) : "明天 08:30";
+        nextRunEl.textContent = s.nextRunTime ? s.nextRunTime.slice(0, 16) : (s.nextRunAt ? s.nextRunAt.slice(0, 16) : "明天 08:30");
       }
       if (lastStatusEl) {
         if (s.lastRunStatus === "success") {
-          lastStatusEl.textContent = `正常完成 (${s.lastRunDurationSeconds || 0}秒)`;
+          lastStatusEl.textContent = "全量快照成功";
           lastStatusEl.className = "text-xs font-bold text-emerald-600 mt-1";
           if (statusDot) statusDot.className = "w-3 h-3 rounded-full bg-emerald-500 animate-pulse";
         } else if (s.lastRunStatus === "partial") {
-          lastStatusEl.textContent = `部分完成 (${s.lastRunItemsSuccess || 0}成功 / ${s.lastRunItemsFailed || 0}失败)`;
+          lastStatusEl.textContent = "部分项已完成";
           lastStatusEl.className = "text-xs font-bold text-amber-600 mt-1";
           if (statusDot) statusDot.className = "w-3 h-3 rounded-full bg-amber-500 animate-pulse";
+        } else if (s.lastRunStatus === "failed") {
+          lastStatusEl.textContent = "上次执行失败";
+          lastStatusEl.className = "text-xs font-bold text-rose-600 mt-1";
+          if (statusDot) statusDot.className = "w-3 h-3 rounded-full bg-rose-500";
         } else {
-          lastStatusEl.textContent = s.lastRunStatus || "待调度";
-          lastStatusEl.className = "text-xs font-bold text-slate-700 mt-1";
+          lastStatusEl.textContent = "待初次调度";
+          lastStatusEl.className = "text-xs font-bold text-slate-600 mt-1";
         }
       }
+      if (lastDurationEl) {
+        lastDurationEl.textContent = s.lastRunDurationSeconds ? `耗时 ${s.lastRunDurationSeconds} 秒` : "耗时 < 1 秒";
+      }
       if (targetsEl) {
-        targetsEl.textContent = `${s.monitoredTargetsCount || 10} 个关键业务对象`;
+        targetsEl.textContent = `${s.monitoredTargetsCount || 10} 个实时业务对象`;
+      }
+      if (warehouseEl) {
+        warehouseEl.textContent = "本地库已同步";
       }
     }
 

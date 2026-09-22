@@ -3,6 +3,7 @@ from datetime import datetime, timezone, date, timedelta
 from typing import Dict, Any, List, Optional
 from ..mcp_client import mcp_client
 from ..database import db
+from ..repository import repository
 
 logger = logging.getLogger("core_product_service")
 
@@ -140,10 +141,16 @@ async def get_core_product_detail(marketplace: str, asin: str) -> Dict[str, Any]
 
     # Safe scalar extraction - ZERO FAKE DATA
     title = asin_data.get("title") or keepa_data.get("title")
-    brand = asin_data.get("brand") or keepa_data.get("brand") or "ELOVNOVA"
+    brand = asin_data.get("brand") or keepa_data.get("brand")
+    if not brand:
+        core_info = next((p for p in get_core_products_registry() if p["asin"] == asin), None)
+        if core_info:
+            brand = "ELOVNOVA"
+        else:
+            brand = None
     image_url = asin_data.get("imageUrl") or keepa_data.get("imageUrl")
     parent_asin = asin_data.get("parent") or keepa_data.get("parentAsin")
-    node_id_path = asin_data.get("nodeIdPath") or keepa_data.get("nodeIdPath") or "1055398:1063252:1199122:3732111"
+    node_id_path = asin_data.get("nodeIdPath") or keepa_data.get("nodeIdPath")
     coupon = asin_data.get("coupon") or None
 
     # Strictly parse price as float or None
@@ -385,6 +392,111 @@ async def get_core_product_detail(marketplace: str, asin: str) -> Dict[str, Any]
         "error": None if (title or price or bsr) else "卖家精灵暂无该 ASIN 详情记录"
     }
 
+def generate_competitor_boss_summary(direct_competitors: List[Dict[str, Any]], owner_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Aggregates competitive landscape into Boss Mode summary:
+    - Top 3 clear gaps between owner SKU and direct competitors
+    - Primary challenge statement
+    - Recommended executive actions
+    """
+    owner_price = owner_data.get("price")
+    owner_reviews = owner_data.get("ratingsCount") or 0
+    owner_rating = owner_data.get("rating")
+    owner_units = owner_data.get("monthlyUnits") or 0
+
+    if not direct_competitors:
+        return {
+            "hasDirectCompetitors": False,
+            "directCount": 0,
+            "primaryChallenge": "尚未配置直接竞品。请从下方系统建议竞品中确认，或手工输入竞品 ASIN。",
+            "top3Gaps": [
+                "1. 竞品追踪池为空：未锁定核心对标对手，难以精确评估价格带与销量差距",
+                "2. 营销策略对比缺失：无法监控竞品 Coupon、秒杀及改价动作",
+                "3. 建议操作：至少选定 3-5 款同类目人体工学枕进行常态化每日跟踪"
+            ],
+            "recommendedActions": [
+                "从'系统建议竞品'中点击'设为直接竞品'",
+                "或输入已知主力对标 ASIN 进行一键验证与历史走势同步"
+            ]
+        }
+
+    # Analyze direct competitors
+    comp_prices = [c["price"] for c in direct_competitors if c.get("price")]
+    comp_reviews = [c["ratingsCount"] for c in direct_competitors if c.get("ratingsCount")]
+    comp_units = [c["monthlyUnits"] for c in direct_competitors if c.get("monthlyUnits")]
+    comp_ratings = [c["rating"] for c in direct_competitors if c.get("rating")]
+
+    avg_comp_price = round(sum(comp_prices) / len(comp_prices), 2) if comp_prices else None
+    avg_comp_reviews = int(sum(comp_reviews) / len(comp_reviews)) if comp_reviews else None
+    avg_comp_units = int(sum(comp_units) / len(comp_units)) if comp_units else None
+    avg_comp_rating = round(sum(comp_ratings) / len(comp_ratings), 1) if comp_ratings else None
+
+    # Gap 1: Reviews & Social Proof
+    if avg_comp_reviews and owner_reviews is not None:
+        if avg_comp_reviews > owner_reviews * 2:
+            gap1 = f"评价壁垒差距：直接竞品平均积累 {avg_comp_reviews:,} 条评价，我方仅 {owner_reviews:,} 条，社会信任度与自然排位权重存在实质壁垒。"
+        elif avg_comp_reviews > owner_reviews:
+            gap1 = f"评价量小幅落后：直接竞品均值 {avg_comp_reviews:,} 条 vs 我方 {owner_reviews:,} 条，需持续补充合规好评拉近距离。"
+        else:
+            gap1 = f"评价壁垒优势：我方评价数 ({owner_reviews:,} 条) 优于或持平竞品均值 ({avg_comp_reviews:,} 条)，用户认同基础稳固。"
+    else:
+        gap1 = "评价数据积累中：部分竞品评价正在建立历史走势追踪。"
+
+    # Gap 2: Pricing & Promotion Positioning
+    if avg_comp_price and owner_price:
+        price_diff = round(avg_comp_price - owner_price, 2)
+        if price_diff <= -5.0:
+            gap2 = f"价格带承压：竞品平均到手价 ${avg_comp_price:.2f}，较我方标价 (${owner_price:.2f}) 便宜 ${abs(price_diff):.2f}，竞品主打性价比分流，我方需强化人体工学支撑卖点支撑溢价。"
+        elif price_diff >= 5.0:
+            gap2 = f"溢价空间充足：竞品均价 ${avg_comp_price:.2f} 高于我方 (${owner_price:.2f})，我方具备高性价比优势，可适度提高广告预算抢占流量。"
+        else:
+            gap2 = f"价格带正面对撞：竞品均价 ${avg_comp_price:.2f} 与我方 (${owner_price:.2f}) 处于同一区间，转化率胜负关键在于 Coupon 折扣刺激与主图差异化。"
+    else:
+        gap2 = "价格带对比：同品类记忆棉枕头价格带正处于密集监控中。"
+
+    # Gap 3: Monthly Volume & Velocity
+    if avg_comp_units and owner_units:
+        ratio = round(avg_comp_units / owner_units, 1) if owner_units > 0 else 0
+        if ratio >= 1.5:
+            gap3 = f"出单体量规模差距：直接竞品平均月销约 {avg_comp_units:,} 件，约是我方的 {ratio:.1f} 倍，类目大词搜索坑位受压制。"
+        elif ratio <= 0.6:
+            gap3 = f"月销体量处于领先：我方月销 ({owner_units:,} 件) 显著领先直接竞品均值 ({avg_comp_units:,} 件)，应注意维持库存健康度。"
+        else:
+            gap3 = f"月销体量相当：直接竞品月销 ({avg_comp_units:,} 件) 与我方 ({owner_units:,} 件) 出单节奏接近，处于胶着争夺期。"
+    else:
+        gap3 = f"出单速度监控：直接竞品月销体量正通过卖家精灵及Keepa每日动态追踪中。"
+
+    # Primary challenge summary
+    if avg_comp_reviews and owner_reviews and avg_comp_reviews > owner_reviews * 3:
+        primary_challenge = f"当前与 5 大直接竞品的核心差距在【评价历史沉淀】。我方产品本身评分具备竞争力，但评价基数差距制约了自然转化率与广告出价信心。"
+    elif avg_comp_price and owner_price and owner_price > avg_comp_price + 6:
+        primary_challenge = f"当前与直接竞品的核心差距在【价格带定位】。竞品均价低 ${owner_price - avg_comp_price:.2f}，我方需重点验证消费者是否愿为人格化/分区支撑卖点支付溢价。"
+    else:
+        primary_challenge = f"我方与直接竞品处于正面对峙期，比拼的是【Listing细节精细化】（主图场景感、A+人体工学拆解）与【促销Coupon转化率】。"
+
+    actions = [
+        "1. 针对核心短板启动优化：若评价落后，立即启动合规索评与 Vine 计划，目标在30天内拉升评价基数；",
+        "2. 价格防御策略：结合竞品 Coupon 动态，测试设置 $3-$5 Coupon 观察对自然排位的拉动作用；",
+        "3. 痛点反打：排查竞品近30天差评高频词（如气味大、支撑力不足），在我方 A+ 页面着重强化材质安全认证与分区承托专利承诺。"
+    ]
+
+    return {
+        "hasDirectCompetitors": True,
+        "directCount": len(direct_competitors),
+        "primaryChallenge": primary_challenge,
+        "top3Gaps": [gap1, gap2, gap3],
+        "recommendedActions": actions,
+        "metricsSummary": {
+            "avgCompPrice": avg_comp_price,
+            "avgCompReviews": avg_comp_reviews,
+            "avgCompUnits": avg_comp_units,
+            "avgCompRating": avg_comp_rating,
+            "ownerPrice": owner_price,
+            "ownerReviews": owner_reviews,
+            "ownerUnits": owner_units,
+            "ownerRating": owner_rating
+        }
+    }
+
 async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str, Any]:
     """Fetches and organizes competitor pools for a core SKU:
     1. Direct Competitors (已确认直接竞品 - 人工确认)
@@ -509,30 +621,53 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
                 "reason": "同属颈椎支撑品类且形态/价格相近"
             })
 
-    # If any confirmed direct competitor was not in the top 100 returned items, add placeholder
+    # If any confirmed direct competitor was not in the top 100 returned items, read from local warehouse
     for c_asin, c_meta in confirmed_map.items():
         if c_asin not in found_confirmed_asins:
+            local_snap = repository.get_local_asin_summary(c_asin) or {}
+            c_price = local_snap.get("price")
+            c_units = local_snap.get("estimated_units")
+            c_reviews = local_snap.get("reviews")
+            c_rating = local_snap.get("rating")
+            c_bsr = local_snap.get("bsr")
+            c_rev = local_snap.get("estimated_revenue")
+            c_coupon = local_snap.get("coupon")
+
+            gap_info = calculate_competitor_gap(
+                owner_price=owner_price,
+                owner_units=owner_units,
+                owner_reviews=owner_reviews,
+                owner_rating=owner_rating,
+                comp_price=c_price,
+                comp_units=c_units,
+                comp_reviews=c_reviews,
+                comp_rating=c_rating
+            )
+
             direct_pool.append({
                 "asin": c_asin,
-                "title": f"已确认竞品 ({c_asin})",
-                "brand": "N/A",
-                "price": None,
-                "bsr": None,
-                "monthlyUnits": None,
-                "monthlyRevenue": None,
-                "rating": None,
-                "ratingsCount": None,
+                "title": c_meta.get("notes") or f"已确认直接竞品 ({c_asin})",
+                "brand": "已同步直接竞品",
+                "price": c_price,
+                "bsr": c_bsr,
+                "monthlyUnits": c_units,
+                "monthlyRevenue": c_rev,
+                "rating": c_rating,
+                "ratingsCount": c_reviews,
                 "imageUrl": None,
+                "coupon": c_coupon,
                 "url": f"https://www.amazon.com/dp/{c_asin}",
                 "rankInCategory": None,
                 "notes": c_meta.get("notes") or "手工添加直接竞品",
                 "verified": 1,
                 "badge": "已确认直接竞品",
-                "gap": {"summary": "正在建立历史数据追踪", "insight": "已添加至每日监控池"}
+                "gap": gap_info
             })
 
     real_top_count = len(top100_pool)
     top_label = f"类目 TOP{real_top_count} 参照池" if real_top_count >= 30 else f"类目前 {real_top_count} 参照"
+
+    boss_summary = generate_competitor_boss_summary(direct_pool, owner_data)
 
     return {
         "status": "ok",
@@ -541,6 +676,8 @@ async def get_core_product_competitors(marketplace: str, asin: str) -> Dict[str,
         "freshnessHours": 0.0,
         "data": {
             "ownerAsin": asin,
+            "ownerData": owner_data,
+            "bossSummary": boss_summary,
             "directCompetitors": direct_pool,
             "suggestedCompetitors": suggested_pool,
             "benchmarkCompetitors": benchmark_pool,
@@ -679,27 +816,230 @@ async def get_core_products_comparison(marketplace: str = "US") -> Dict[str, Any
         "error": None
     }
 
-# Competitor Management APIs
-def add_direct_competitor(owner_asin: str, competitor_asin: str, notes: str = "") -> bool:
-    """Manually adds a verified direct competitor."""
-    return db.add_competitor(
+# Competitor Management APIs (Closed Loop with Real MCP Validation & Local Warehouse Sync)
+async def sync_and_save_competitor(
+    owner_asin: str,
+    competitor_asin: str,
+    group_type: str = "direct",
+    source: str = "manual",
+    notes: str = "",
+    marketplace: str = "US"
+) -> Dict[str, Any]:
+    """Validates competitor ASIN via MCP, fetches Keepa/sales trend,
+    persists full dataset into local warehouse, calculates gap against owner,
+    and records into competitor_sets.
+    Raises ValueError if ASIN is invalid or not found on Amazon.
+    """
+    marketplace = marketplace.upper()
+    competitor_asin = competitor_asin.strip().upper()
+
+    if len(competitor_asin) != 10:
+        raise ValueError(f"ASIN 格式无效: '{competitor_asin}'，必须是 10 位亚马逊标准识别码")
+
+    # 1. MCP asin_detail validation
+    detail_env = await mcp_client.call_tool("asin_detail", {
+        "marketplace": marketplace,
+        "asin": competitor_asin
+    })
+
+    if detail_env.get("status") != "ok" or not detail_env.get("data"):
+        err = detail_env.get("error") or "该 ASIN 在亚马逊美国站不存在或卖家精灵无数据"
+        raise ValueError(f"无法添加竞品 ASIN '{competitor_asin}': {err}")
+
+    asin_data = detail_env["data"]
+    title = asin_data.get("title")
+    if not title:
+        raise ValueError(f"ASIN '{competitor_asin}' 未能获取到有效的商品标题，已拒绝添加")
+
+    # 2. Fetch Keepa and Sales Trend
+    keepa_env = await mcp_client.call_tool("keepa_info", {
+        "marketplace": marketplace,
+        "asin": competitor_asin
+    })
+    keepa_data = keepa_env.get("data") or {}
+
+    trend_env = await mcp_client.call_tool("asin_sales_trend", {
+        "marketplace": marketplace,
+        "asin": competitor_asin
+    })
+    trend_raw = trend_env.get("data") or {}
+    sales_points = trend_raw.get("salesTrendPoints", []) if isinstance(trend_raw, dict) else []
+
+    # Clean attributes
+    brand = asin_data.get("brand") or keepa_data.get("brand") or "N/A"
+    image_url = asin_data.get("imageUrl") or keepa_data.get("imageUrl")
+    coupon = asin_data.get("coupon") or None
+
+    # Price
+    price = None
+    raw_price = asin_data.get("price")
+    if raw_price is None and isinstance(keepa_data.get("price"), (int, float)):
+        raw_price = float(keepa_data.get("price"))
+    if raw_price is not None:
+        try:
+            val = float(raw_price)
+            if val > 0:
+                price = val
+        except (ValueError, TypeError):
+            pass
+
+    # BSR
+    bsr = None
+    raw_bsr = asin_data.get("bsrRank")
+    if raw_bsr is None and keepa_data.get("bsr"):
+        kp_b = keepa_data.get("bsr")
+        if isinstance(kp_b, list) and kp_b:
+            raw_bsr = kp_b[-1].get("value")
+        elif isinstance(kp_b, (int, float)):
+            raw_bsr = int(kp_b)
+    if raw_bsr and str(raw_bsr).isdigit() and int(raw_bsr) > 0:
+        bsr = int(raw_bsr)
+
+    # Rating & Reviews
+    rating = None
+    raw_rating = asin_data.get("rating") or keepa_data.get("rating")
+    if raw_rating is not None:
+        try:
+            val = float(raw_rating)
+            if val > 0:
+                rating = val
+        except (ValueError, TypeError):
+            pass
+
+    reviews = None
+    raw_rev = asin_data.get("ratings") or keepa_data.get("reviews")
+    if raw_rev is not None:
+        try:
+            reviews = int(raw_rev)
+        except (ValueError, TypeError):
+            pass
+
+    # Units & Revenue
+    units = asin_data.get("units")
+    if isinstance(units, (int, float)):
+        units = int(units)
+    else:
+        units = None
+
+    revenue = asin_data.get("revenue")
+    if isinstance(revenue, (int, float)):
+        revenue = float(revenue)
+    elif units and price:
+        revenue = round(units * price, 2)
+    else:
+        revenue = None
+
+    # Parse price & bsr points
+    price_points = []
+    kp_prices = keepa_data.get("price")
+    if isinstance(kp_prices, list):
+        for kp_item in kp_prices:
+            if isinstance(kp_item, dict):
+                tp = kp_item.get("timePoint")
+                val = kp_item.get("value")
+                if tp and val and float(val) > 0:
+                    d_str = datetime.fromtimestamp(tp / 1000.0, timezone.utc).strftime("%Y-%m-%d")
+                    price_points.append({"date": d_str, "price": float(val)})
+
+    bsr_points = []
+    kp_bsrs = keepa_data.get("bsr")
+    if isinstance(kp_bsrs, list):
+        for kp_item in kp_bsrs:
+            if isinstance(kp_item, dict):
+                tp = kp_item.get("timePoint")
+                val = kp_item.get("value")
+                if tp and val and str(val).isdigit() and int(val) > 0:
+                    d_str = datetime.fromtimestamp(tp / 1000.0, timezone.utc).strftime("%Y-%m-%d")
+                    bsr_points.append({"date": d_str, "bsr": int(val)})
+
+    # 3. Persist to local warehouse (Snapshot + Time-Series History)
+    repository.persist_asin_full_sync(
+        asin=competitor_asin,
+        price=price,
+        units=units,
+        revenue=revenue,
+        bsr=bsr,
+        rating=rating,
+        reviews=reviews,
+        coupon=coupon,
+        price_points=price_points,
+        bsr_points=bsr_points,
+        sales_points=sales_points,
+        source="sellersprite_mcp"
+    )
+
+    # 4. Fetch Owner data and calculate Gap
+    owner_snap = db.get_latest_asin_snapshot(owner_asin) or {}
+    gap_info = calculate_competitor_gap(
+        owner_price=owner_snap.get("price"),
+        owner_units=owner_snap.get("estimated_units"),
+        owner_reviews=owner_snap.get("reviews"),
+        owner_rating=owner_snap.get("rating"),
+        comp_price=price,
+        comp_units=units,
+        comp_reviews=reviews,
+        comp_rating=rating
+    )
+
+    # 5. Insert / Update competitor_sets
+    db.add_competitor(
+        owner_asin=owner_asin,
+        competitor_asin=competitor_asin,
+        group_type=group_type,
+        source=source,
+        verified=1,
+        notes=notes or ("运营手工添加直接竞品" if source == "manual" else "系统建议竞品转为直接竞品")
+    )
+    db.update_competitor_sync_meta(
+        owner_asin=owner_asin,
+        competitor_asin=competitor_asin,
+        gap_summary=gap_info["summary"],
+        gap_insight=gap_info["insight"],
+        price_diff=gap_info["priceDiff"],
+        units_ratio=gap_info["unitsRatio"]
+    )
+
+    logger.info(f"[COMPETITOR SYNC] Closed-loop completed for {competitor_asin} (Owner: {owner_asin})")
+
+    return {
+        "asin": competitor_asin,
+        "title": title,
+        "brand": brand,
+        "price": price,
+        "bsr": bsr,
+        "monthlyUnits": units,
+        "monthlyRevenue": revenue,
+        "rating": rating,
+        "ratingsCount": reviews,
+        "imageUrl": image_url,
+        "coupon": coupon,
+        "url": f"https://www.amazon.com/dp/{competitor_asin}",
+        "notes": notes,
+        "verified": 1,
+        "badge": "已确认直接竞品",
+        "gap": gap_info
+    }
+
+async def add_direct_competitor(owner_asin: str, competitor_asin: str, notes: str = "", marketplace: str = "US") -> Dict[str, Any]:
+    """Manually adds and verifies a direct competitor with immediate closed-loop sync."""
+    return await sync_and_save_competitor(
         owner_asin=owner_asin,
         competitor_asin=competitor_asin,
         group_type="direct",
         source="manual",
-        verified=1,
-        notes=notes or "运营手工添加直接竞品"
+        notes=notes or "运营手工添加直接竞品",
+        marketplace=marketplace
     )
 
-def confirm_suggested_competitor(owner_asin: str, competitor_asin: str) -> bool:
-    """Confirms an auto-discovered suggested competitor as a verified direct competitor."""
-    return db.add_competitor(
+async def confirm_suggested_competitor(owner_asin: str, competitor_asin: str, marketplace: str = "US") -> Dict[str, Any]:
+    """Confirms an auto-discovered suggested competitor as a verified direct competitor with closed-loop sync."""
+    return await sync_and_save_competitor(
         owner_asin=owner_asin,
         competitor_asin=competitor_asin,
         group_type="direct",
         source="auto_discovery",
-        verified=1,
-        notes="由系统建议竞品经人工确认为直接竞品"
+        notes="由系统建议竞品经人工确认为直接竞品",
+        marketplace=marketplace
     )
 
 def remove_direct_competitor(owner_asin: str, competitor_asin: str) -> bool:

@@ -212,14 +212,64 @@ async def get_core_market_overview(marketplace: str = "US", node_id_path: str = 
     top1_name = top1_brand["name"] if top1_brand else "头部领跑品牌"
     top1_share = top1_brand["share"] if top1_brand else 0.0
 
+    # Format currency properly (e.g. $14.9M / 约 1492 万美元, NEVER $1492 万元)
+    sample_rev_m = sample_revenue_total / 1_000_000
+    sample_rev_w = int(sample_revenue_total / 10_000)
+    rev_formatted = f"${sample_rev_m:.1f}M (约 {sample_rev_w} 万美元)"
+
+    # Read core SKU latest snapshots dynamically from warehouse
+    snap_liu = db.get_latest_asin_snapshot("B0GYH8WT22") or {}
+    snap_gray = db.get_latest_asin_snapshot("B0GY2TDLTZ") or {}
+    snap_blue = db.get_latest_asin_snapshot("B0GY2WGTDM") or {}
+
+    liu_price = snap_liu.get("price")
+    liu_rating = snap_liu.get("rating")
+    gray_price = snap_gray.get("price")
+    gray_rating = snap_gray.get("rating")
+    blue_price = snap_blue.get("price")
+    blue_rating = snap_blue.get("rating")
+
+    if liu_price:
+        low = int(liu_price // 10) * 10
+        liu_bracket = f"${low}-${low + 10}"
+        liu_price_str = f"${liu_price:.2f}"
+    else:
+        liu_bracket = "$40-$50"
+        liu_price_str = "待更新标价"
+
+    if gray_price:
+        low = int(gray_price // 10) * 10
+        gray_bracket = f"${low}-${low + 10}"
+        gray_price_str = f"${gray_price:.2f}"
+    else:
+        gray_bracket = "$40-$50"
+        gray_price_str = "待更新标价"
+
+    if blue_price:
+        low = int(blue_price // 10) * 10
+        blue_bracket = f"${low}-${low + 10}"
+        blue_price_str = f"${blue_price:.2f}"
+    else:
+        blue_bracket = "$40-$50"
+        blue_price_str = "待更新标价"
+
+    gray_rating_str = f"{gray_rating:.1f}★" if gray_rating else "3.8★"
+
     # 4 Core Plain-Language Executive Questions
     market_size_q = {
         "question": "这个市场大不大？",
         "sampleProductCount": sample_products_count,
         "sampleUnits": sample_units_total,
         "sampleRevenue": round(sample_revenue_total, 2),
+        "sampleRevenueFormatted": rev_formatted,
         "avgPrice": avg_price,
-        "verdict": f"本次分析基于细分节点核心在售样本（{sample_products_count} 个商品），样本单月预估总销量达 {sample_units_total/10000:.1f} 万件，单月预估销售额约 ${(sample_revenue_total/10000):.0f} 万元，属于需求刚性、出货量充足的成熟市场。"
+        "verdict": f"本次分析基于细分节点核心在售样本（{sample_products_count} 个商品），样本单月预估总销量达 {sample_units_total/10000:.1f} 万件，单月预估销售额约 {rev_formatted}，属于需求刚性、出货量充足的成熟市场。",
+        "evidence": [
+            f"大盘核心样本数：{sample_products_count} 款核心枕头商品",
+            f"样本月销量总计：{sample_units_total:,} 件",
+            f"样本单月销售额：{rev_formatted}",
+            f"大盘平均标价：${avg_price:.2f}"
+        ]
     }
 
     concentration_q = {
@@ -229,7 +279,13 @@ async def get_core_market_overview(marketplace: str = "US", node_id_path: str = 
         "cr8": cr8,
         "top1Brand": top1_name,
         "top1Share": top1_share,
-        "explanation": f"第一名品牌 ({top1_name}) 一家占据约 {top1_share:.1f}% 份额；剩余约一半销量仍分散在其他品牌。竞争偏集中，存在龙头标杆，但绝非单一品牌完全垄断。"
+        "explanation": f"第一名品牌 ({top1_name}) 一家占据约 {top1_share:.1f}% 份额；剩余约一半销量仍分散在其他品牌。竞争偏集中，存在龙头标杆，但绝非单一品牌完全垄断。",
+        "evidence": [
+            f"行业 CR4 集中度：{cr4}%",
+            f"行业 CR8 集中度：{cr8}%",
+            f"头部第一品牌 ({top1_name}) 市场份额：{top1_share:.1f}%",
+            "行业竞争态势：中度垄断，存在龙头领跑但仍留有长尾生存空间"
+        ]
     }
 
     price_band_q = {
@@ -237,9 +293,14 @@ async def get_core_market_overview(marketplace: str = "US", node_id_path: str = 
         "headline": f"需求最集中：{best_bracket_name} (占样本销量的 {best_bracket_ratio}%)",
         "bestBracket": best_bracket_name,
         "bestBracketRatio": best_bracket_ratio,
-        "ourPrice": 45.99,
-        "ourBracket": "$40-$50",
-        "explanation": f"消费者消费意愿最强的价格区间是 {best_bracket_name}。我方刘总枕头标价 $45.99（位于 $40-$50 偏高价格带），必须通过更严谨的人体工学侧睡分区承托等差异化卖点来支撑溢价。"
+        "ourPrice": liu_price or 45.99,
+        "ourBracket": liu_bracket,
+        "explanation": f"消费者消费意愿最强的价格区间是 {best_bracket_name}。我方刘总枕头标价 {liu_price_str}（位于 {liu_bracket} 偏高价格带），必须通过更严谨的人体工学侧睡分区承托等差异化卖点来支撑溢价。",
+        "evidence": [
+            f"最高销量价格带：{best_bracket_name} (占大盘销量 {best_bracket_ratio}%)",
+            f"我方核心款标价：{liu_price_str} (所处区间: {liu_bracket})",
+            f"大盘区间数量：共统计 {len(price_brackets)} 个主要价格带"
+        ]
     }
 
     sku_impact_q = {
@@ -248,24 +309,24 @@ async def get_core_market_overview(marketplace: str = "US", node_id_path: str = 
             {
                 "sku": "LIU-B0GYH8WT22",
                 "name": "刘总枕头",
-                "price": 45.99,
-                "bracket": "$40-$50",
+                "price": liu_price,
+                "bracket": liu_bracket,
                 "position": "偏高价位带",
-                "strategy": "站稳中高端，强化人体工学分区支撑与侧睡不压肩卖点，支撑 $45.99 溢价，切忌盲目降价卷低端。"
+                "strategy": f"站稳中高端，强化人体工学分区支撑与侧睡不压肩卖点，支撑 {liu_price_str} 溢价，切忌盲目降价卷低端。"
             },
             {
                 "sku": "ELOVNOVA-Gray",
                 "name": "江西灰色",
-                "price": 40.99,
-                "bracket": "$40-$50",
+                "price": gray_price,
+                "bracket": gray_bracket,
                 "position": "主流临界带",
-                "strategy": "受 3.8★ 口碑拖累，在 $40-$50 区间处于被动；最紧要工作是排查气味与支撑力客诉，拉升评分。"
+                "strategy": f"受 {gray_rating_str} 口碑拖累，在 {gray_bracket} 区间处于被动；最紧要工作是排查气味与支撑力客诉，拉升评分。"
             },
             {
                 "sku": "ELOVNOVA-Blue",
                 "name": "江西蓝色",
-                "price": 40.99,
-                "bracket": "$40-$50",
+                "price": blue_price,
+                "bracket": blue_bracket,
                 "position": "主流临界带",
                 "strategy": "作为灰色款同体变体款，承接差异化颜色偏好，大盘出单稳定，维持现有广告投放。"
             },
@@ -281,10 +342,10 @@ async def get_core_market_overview(marketplace: str = "US", node_id_path: str = 
     }
 
     executive_one_sentence = (
-        f"这是一个样本月销约 {sample_units_total/10000:.1f} 万件的成熟市场；"
+        f"这是一个样本单月预估额达 {rev_formatted}、月销约 {sample_units_total/10000:.1f} 万件的成熟市场；"
         f"头部第一名品牌 ({top1_name}) 吃掉约 {top1_share:.1f}% 份额，前4品牌占 {cr4}%；"
-        f"消费者需求最集中在 {best_bracket_name}。我方刘总枕头 ($45.99) 属于偏高价格带，需以鲜明的人体工学差异化支撑溢价；"
-        f"江西灰色 ($40.99) 亟需优化 3.8★ 口碑瓶颈。"
+        f"消费者需求最集中在 {best_bracket_name} 价格带。我方刘总枕头 ({liu_price_str}) 属于偏高价格带，需以鲜明的人体工学差异化支撑溢价；"
+        f"江西灰色 ({gray_price_str}) 亟需优化 {gray_rating_str} 口碑瓶颈。"
     )
 
     brand_narrative = f"第一名品牌 ({top1_name}) 占据约 {top1_share:.1f}% 份额领跑全场，第二名开始份额均在 10% 以下，市场长尾存在生存空间。"

@@ -111,12 +111,87 @@ class Database:
             for col_name, col_type in [
                 ("source", "TEXT DEFAULT 'manual'"),
                 ("verified", "INTEGER DEFAULT 0"),
-                ("verified_at", "DATETIME")
+                ("verified_at", "DATETIME"),
+                ("last_synced_at", "DATETIME"),
+                ("relationship_summary", "TEXT"),
+                ("gap_insight", "TEXT"),
+                ("price_diff", "REAL"),
+                ("units_ratio", "REAL")
             ]:
                 try:
                     cursor.execute(f"ALTER TABLE competitor_sets ADD COLUMN {col_name} {col_type}")
                 except Exception:
                     pass
+
+            # 5b. Raw MCP Responses Archive (Traceability & Immutable Evidence)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS mcp_raw_responses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tool_name TEXT NOT NULL,
+                    request_json TEXT NOT NULL,
+                    response_json TEXT NOT NULL,
+                    entity_type TEXT,
+                    entity_id TEXT,
+                    verification_status TEXT DEFAULT 'verified',
+                    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # 5c. Time Series: ASIN Price History
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS asin_price_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    asin TEXT NOT NULL,
+                    snapshot_date DATE NOT NULL,
+                    price REAL NOT NULL,
+                    source TEXT DEFAULT 'keepa',
+                    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(asin, snapshot_date)
+                )
+            """)
+
+            # 5d. Time Series: ASIN BSR History
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS asin_bsr_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    asin TEXT NOT NULL,
+                    snapshot_date DATE NOT NULL,
+                    bsr INTEGER NOT NULL,
+                    source TEXT DEFAULT 'keepa',
+                    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(asin, snapshot_date)
+                )
+            """)
+
+            # 5e. Time Series: ASIN Sales History
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS asin_sales_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    asin TEXT NOT NULL,
+                    snapshot_date DATE NOT NULL,
+                    units INTEGER,
+                    revenue REAL,
+                    source TEXT DEFAULT 'sellersprite_mcp',
+                    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(asin, snapshot_date)
+                )
+            """)
+
+            # 5f. Keyword Miner Query History
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS keyword_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    keyword TEXT NOT NULL,
+                    marketplace TEXT DEFAULT 'US',
+                    searches INTEGER DEFAULT 0,
+                    purchases INTEGER DEFAULT 0,
+                    purchase_rate REAL DEFAULT 0.0,
+                    prods_count INTEGER DEFAULT 0,
+                    source TEXT DEFAULT 'sellersprite_mcp',
+                    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(keyword, marketplace, fetched_at)
+                )
+            """)
 
             # 6. Pipeline Products (Memory Foam Supply Chain Relatives)
             cursor.execute("""
@@ -228,6 +303,126 @@ class Database:
                 ORDER BY created_at DESC
             """, (owner_asin,))
             return [dict(r) for r in c.fetchall()]
+
+    def archive_raw_response(self, tool_name: str, request_json: str, response_json: str, entity_type: Optional[str] = None, entity_id: Optional[str] = None, verification_status: str = "verified") -> int:
+        """Archives raw external MCP/Keepa JSON response for immutable audit trail and traceability."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("""
+                INSERT INTO mcp_raw_responses (tool_name, request_json, response_json, entity_type, entity_id, verification_status, fetched_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (tool_name, request_json, response_json, entity_type, entity_id, verification_status, now_iso))
+            conn.commit()
+            return c.lastrowid
+
+    def batch_insert_price_history(self, asin: str, points: List[Dict[str, Any]], source: str = "keepa"):
+        """Backfills or appends price history points (date, price)."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            for p in points:
+                d_str = p.get("date")
+                price = p.get("price")
+                if d_str and price is not None:
+                    c.execute("""
+                        INSERT OR REPLACE INTO asin_price_history (asin, snapshot_date, price, source, fetched_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (asin, d_str, float(price), source, now_iso))
+            conn.commit()
+
+    def batch_insert_bsr_history(self, asin: str, points: List[Dict[str, Any]], source: str = "keepa"):
+        """Backfills or appends BSR history points (date, bsr)."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            for p in points:
+                d_str = p.get("date")
+                bsr = p.get("bsr")
+                if d_str and bsr is not None:
+                    c.execute("""
+                        INSERT OR REPLACE INTO asin_bsr_history (asin, snapshot_date, bsr, source, fetched_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (asin, d_str, int(bsr), source, now_iso))
+            conn.commit()
+
+    def batch_insert_sales_history(self, asin: str, points: List[Dict[str, Any]], source: str = "sellersprite_mcp"):
+        """Backfills or appends sales history points (date, units, revenue)."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            for p in points:
+                d_str = p.get("date")
+                units = p.get("units")
+                rev = p.get("revenue")
+                if d_str:
+                    c.execute("""
+                        INSERT OR REPLACE INTO asin_sales_history (asin, snapshot_date, units, revenue, source, fetched_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (asin, d_str, units, rev, source, now_iso))
+            conn.commit()
+
+    def get_price_history(self, asin: str) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT snapshot_date as date, price FROM asin_price_history WHERE asin = ? ORDER BY snapshot_date ASC", (asin,))
+            return [dict(r) for r in c.fetchall()]
+
+    def get_bsr_history(self, asin: str) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT snapshot_date as date, bsr FROM asin_bsr_history WHERE asin = ? ORDER BY snapshot_date ASC", (asin,))
+            return [dict(r) for r in c.fetchall()]
+
+    def get_latest_asin_snapshot(self, asin: str) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM asin_snapshots WHERE asin = ? ORDER BY snapshot_date DESC, id DESC LIMIT 1", (asin,))
+            row = c.fetchone()
+            return dict(row) if row else None
+
+    def update_competitor_sync_meta(self, owner_asin: str, competitor_asin: str, gap_summary: Optional[str] = None, gap_insight: Optional[str] = None, price_diff: Optional[float] = None, units_ratio: Optional[float] = None):
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self.get_connection() as conn:
+            conn.execute("""
+                UPDATE competitor_sets
+                SET last_synced_at = ?,
+                    relationship_summary = COALESCE(?, relationship_summary),
+                    gap_insight = COALESCE(?, gap_insight),
+                    price_diff = COALESCE(?, price_diff),
+                    units_ratio = COALESCE(?, units_ratio)
+                WHERE owner_asin = ? AND competitor_asin = ?
+            """, (now_iso, gap_summary, gap_insight, price_diff, units_ratio, owner_asin, competitor_asin))
+            conn.commit()
+
+    def count_real_monitored_targets(self) -> Dict[str, int]:
+        """Calculates real count of monitored business entities without hardcoding."""
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            # 1. Active core SKUs
+            c.execute("SELECT COUNT(*) as cnt FROM products WHERE is_core_pillow = 1 AND status = 'active' AND asin != 'PENDING_SKU_4'")
+            core_count = c.fetchone()["cnt"]
+
+            # 2. Active confirmed direct competitors
+            c.execute("SELECT COUNT(DISTINCT competitor_asin) as cnt FROM competitor_sets WHERE group_type = 'direct' AND verified = 1 AND active = 1")
+            direct_count = c.fetchone()["cnt"]
+
+            # 3. Active benchmark competitors
+            c.execute("SELECT COUNT(DISTINCT competitor_asin) as cnt FROM competitor_sets WHERE group_type = 'benchmark' AND active = 1")
+            bench_count = c.fetchone()["cnt"]
+
+            # 4. Monitored market category nodes
+            c.execute("SELECT COUNT(*) as cnt FROM market_nodes")
+            market_count = c.fetchone()["cnt"]
+
+            total = core_count + direct_count + bench_count + market_count
+            return {
+                "total": total,
+                "coreCount": core_count,
+                "directCompetitorsCount": direct_count,
+                "benchmarkCount": bench_count,
+                "marketNodesCount": market_count
+            }
 
     def seed_defaults(self):
         """Seeds standard core products, category nodes, and pipeline candidates without fabricating metrics."""

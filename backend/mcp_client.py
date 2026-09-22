@@ -101,6 +101,19 @@ class SellerSpriteMCPClient:
                     extracted = business_data.get("data")
                     if use_cache:
                         cache.set(tool_name, arguments, extracted)
+
+                    # Archive raw response to local database for traceability
+                    try:
+                        from .database import db
+                        entity_id = arguments.get("asin") or arguments.get("keyword") or arguments.get("nodeIdPath")
+                        if not entity_id and isinstance(arguments.get("request"), dict):
+                            req = arguments["request"]
+                            entity_id = req.get("asin") or req.get("keyword") or req.get("nodeIdPath")
+                        entity_type = "asin" if (arguments.get("asin") or (isinstance(arguments.get("request"), dict) and arguments["request"].get("asin"))) else ("keyword" if (arguments.get("keyword") or (isinstance(arguments.get("request"), dict) and arguments["request"].get("keyword"))) else ("node" if (arguments.get("nodeIdPath") or (isinstance(arguments.get("request"), dict) and arguments["request"].get("nodeIdPath"))) else "general"))
+                        db.archive_raw_response(tool_name, json.dumps(arguments, ensure_ascii=False), raw_text, entity_type, str(entity_id) if entity_id else None)
+                    except Exception as ex:
+                        logger.warning(f"Failed to archive raw response: {ex}")
+
                     return {
                         "status": "ok",
                         "source": "sellersprite_mcp",

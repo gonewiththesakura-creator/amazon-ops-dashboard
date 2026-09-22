@@ -131,12 +131,17 @@
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
             <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
-              <span>今天最值得关注 (10秒决策简报)</span>
+              <span>今天最值得关注 (4大事实 · 4项直达行动)</span>
             </h2>
-            <span class="text-xs text-slate-400">基于真实 MCP 快照与环比分析</span>
+            <span class="text-xs text-slate-400">基于本地数据仓库与卖家精灵实时快照</span>
           </div>
-          <div id="briefingBullets" class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3.5">
-            <!-- 3 Bullets injected by dashboard.js -->
+          <!-- 4 关键事实 -->
+          <div id="briefingBullets" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-3.5">
+            <!-- 4 Bullets injected by dashboard.js -->
+          </div>
+          <!-- 4 项直达行动按钮 -->
+          <div id="briefingActions" class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 pt-3 border-t border-slate-100">
+            <!-- 4 Action buttons injected by dashboard.js -->
           </div>
         </div>
 
@@ -552,6 +557,43 @@
             </div>
           </div>
 
+          <!-- 老板模式首屏：我们 vs 5大直接竞品 + 3大主要差距 -->
+          <div id="bossCompetitorCard" class="p-5 rounded-xl bg-gradient-to-r from-blue-50/80 via-slate-50 to-indigo-50/60 border border-blue-200 text-xs shadow-sm space-y-3.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-base">⚔️</span>
+                <span class="font-bold text-sm text-slate-900">我们 vs 直接竞品核心差距 (老板 10 秒摘要)</span>
+              </div>
+              <span id="bossCompStatusBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">已对标 0 款直接竞品</span>
+            </div>
+            
+            <div class="p-3 bg-white/80 rounded-lg border border-blue-100">
+              <span class="font-bold text-slate-800">当前核心对决：</span>
+              <span id="bossCompPrimaryChallenge" class="text-slate-700 leading-relaxed font-medium">正在对比我方与直接竞品参数...</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="p-3 bg-white rounded-lg border border-slate-200">
+                <div class="text-[10px] font-bold text-blue-600 uppercase mb-1">差距 1 · 评价与信誉壁垒</div>
+                <div id="bossGap1" class="text-[11px] text-slate-700 leading-snug">--</div>
+              </div>
+              <div class="p-3 bg-white rounded-lg border border-slate-200">
+                <div class="text-[10px] font-bold text-amber-600 uppercase mb-1">差距 2 · 价格带与促销卡位</div>
+                <div id="bossGap2" class="text-[11px] text-slate-700 leading-snug">--</div>
+              </div>
+              <div class="p-3 bg-white rounded-lg border border-slate-200">
+                <div class="text-[10px] font-bold text-purple-600 uppercase mb-1">差距 3 · 销量出单规模</div>
+                <div id="bossGap3" class="text-[11px] text-slate-700 leading-snug">--</div>
+              </div>
+            </div>
+
+            <!-- 经营与运营建议 -->
+            <div class="pt-2 border-t border-blue-100 flex items-start gap-2">
+              <span class="font-bold text-blue-800 flex-shrink-0">建议直接行动：</span>
+              <div id="bossCompActions" class="text-slate-700 text-[11px] space-y-0.5">--</div>
+            </div>
+          </div>
+
           <!-- 屏幕 2: 竞品分类对照池 (彻底区分 4 池 + 差距分析) -->
           <div class="exec-card p-5">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
@@ -749,22 +791,31 @@
             </button>
           </div>
 
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-center">
-            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <div class="text-[10px] text-slate-400">调度模式与时间</div>
-              <div id="autoScheduleTime" class="text-xs font-bold text-slate-800 mt-1 font-mono">每天 08:30 CST</div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-4 text-center">
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between">
+              <div class="text-[10px] text-slate-400">调度引擎状态</div>
+              <div id="autoSchedulerActive" class="text-xs font-bold text-emerald-600 mt-1 font-mono">🟢 调度运行中</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">每天 08:30 CST</div>
             </div>
-            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <div class="text-[10px] text-slate-400">下次调度预计执行</div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between">
+              <div class="text-[10px] text-slate-400">监控目标总数</div>
+              <div id="autoTargetsCount" class="text-xs font-bold text-slate-900 mt-1 font-mono">--</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">核心 + 竞品 + 大盘</div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between">
+              <div class="text-[10px] text-slate-400">下次调度时间</div>
               <div id="autoNextRun" class="text-xs font-bold text-blue-600 mt-1 font-mono">明天 08:30</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">北京时间 08:30:00</div>
             </div>
-            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <div class="text-[10px] text-slate-400">上次快照执行状态</div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between">
+              <div class="text-[10px] text-slate-400">最近采集状态</div>
               <div id="autoLastStatus" class="text-xs font-bold text-emerald-600 mt-1">正常完成</div>
+              <div id="autoLastDuration" class="text-[10px] text-slate-400 mt-0.5">耗时 --</div>
             </div>
-            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <div class="text-[10px] text-slate-400">单次监控对象覆盖</div>
-              <div id="autoTargetsCount" class="text-xs font-bold text-slate-800 mt-1">4核心 + 竞品 + 大盘</div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between">
+              <div class="text-[10px] text-slate-400">本地仓库资产</div>
+              <div id="autoWarehouseAssets" class="text-xs font-bold text-purple-600 mt-1 font-mono">安全归档</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">零假数据 · 可追溯</div>
             </div>
           </div>
         </div>

@@ -11,20 +11,39 @@ const DashboardView = {
 
     const briefing = res.data;
 
-    // 1. Render Top AI Briefing 3 Bullets
+    // 1. Render Top AI Briefing 4 Facts
     const bulletsContainer = document.getElementById("briefingBullets");
     if (bulletsContainer && briefing.bullets) {
       bulletsContainer.innerHTML = briefing.bullets.map(b => `
-        <div class="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 border border-slate-200">
-          <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
-            ${b.id}
-          </span>
-          <div class="text-xs">
-            <span class="font-bold text-slate-900">${b.highlight}：</span>
-            <span class="text-slate-700">${b.detail}</span>
-            <span class="ml-2 font-mono text-[10px] text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200">证据: ${b.evidence}</span>
+        <div class="flex flex-col justify-between p-3.5 rounded-lg bg-slate-50 border border-slate-200">
+          <div>
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                ${b.id}
+              </span>
+              <span class="text-xs font-bold text-slate-800">${b.title || `事实 ${b.id}`}</span>
+            </div>
+            <div class="text-xs font-semibold text-slate-900 leading-snug">${b.highlight}</div>
+            <div class="text-[11px] text-slate-600 mt-1 leading-relaxed">${b.detail}</div>
+          </div>
+          <div class="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+            <span class="text-[10px] text-slate-400 font-mono">证据: ${b.evidence}</span>
           </div>
         </div>
+      `).join("");
+    }
+
+    // 1b. Render 4 Direct Action Buttons
+    const actionsContainer = document.getElementById("briefingActions");
+    if (actionsContainer && briefing.actions) {
+      actionsContainer.innerHTML = briefing.actions.map(a => `
+        <button onclick="App.navigateTo('${a.target}')" class="flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition text-left group">
+          <span class="text-xl group-hover:scale-110 transition-transform">${a.icon}</span>
+          <div>
+            <div class="text-xs font-bold text-slate-800 group-hover:text-blue-600">${a.label}</div>
+            <div class="text-[10px] text-slate-400">${a.desc}</div>
+          </div>
+        </button>
       `).join("");
     }
 

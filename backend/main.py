@@ -31,39 +31,17 @@ from .services.rule_diagnostics import get_executive_briefing, generate_rule_dia
 from .services.data_job_service import list_data_jobs, trigger_daily_refresh, get_automation_status
 from .services.replenishment_service import calculate_replenishment
 
-logger = logging.getLogger("main")
+from .scheduler import start_scheduler, stop_scheduler, get_live_scheduler_status
 
-# Background Scheduler for Daily 08:30 Snapshot (Plan A)
-scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+logger = logging.getLogger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Register daily snapshot task at 08:30 AM Beijing Time
-    try:
-        scheduler.add_job(
-            trigger_daily_refresh,
-            CronTrigger(hour=8, minute=30, timezone="Asia/Shanghai"),
-            id="daily_amazon_snapshot",
-            name="Daily Amazon Ops Snapshot (08:30 CST)",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-            misfire_grace_time=3600
-        )
-        scheduler.start()
-        logger.info("[SCHEDULER] Daily snapshot job scheduled for 08:30 CST.")
-    except Exception as e:
-        logger.error(f"[SCHEDULER] Failed to start scheduler: {e}")
-
+    start_scheduler()
     yield
+    stop_scheduler()
 
-    try:
-        scheduler.shutdown(wait=False)
-        logger.info("[SCHEDULER] Scheduler shut down.")
-    except Exception:
-        pass
-
-app = FastAPI(title="Amazon AI Opportunity Intelligence API", version="2.1.0", lifespan=lifespan)
+app = FastAPI(title="Amazon AI Opportunity Intelligence API", version="2.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -108,7 +86,7 @@ async def health():
     return {
         "status": "ok",
         "service": "Amazon AI Opportunity Intelligence",
-        "version": "2.1.0",
+        "version": "2.3.0",
         "mcp_url": settings.MCP_URL
     }
 
@@ -154,25 +132,39 @@ async def api_get_core_product_competitors(asin: str, marketplace: str = "US"):
 
 @app.post("/api/core-products/{asin}/competitors/manual")
 async def api_add_manual_competitor(asin: str, req: DirectCompetitorRequest):
-    success = add_direct_competitor(asin, req.competitorAsin.strip().upper(), req.notes or "运营手工录入直接竞品")
-    return {
-        "status": "ok",
-        "success": success,
-        "ownerAsin": asin,
-        "competitorAsin": req.competitorAsin.strip().upper(),
-        "message": f"已成功将 ASIN {req.competitorAsin} 加入已确认直接竞品池"
-    }
+    try:
+        res = await add_direct_competitor(asin, req.competitorAsin.strip().upper(), req.notes or "运营手工录入直接竞品")
+        return {
+            "status": "ok",
+            "success": True,
+            "ownerAsin": asin,
+            "competitorAsin": req.competitorAsin.strip().upper(),
+            "message": f"已成功将 ASIN {req.competitorAsin} 验证并加入已确认直接竞品池，已同步历史走势与数据快照",
+            "data": res
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error adding manual competitor: {e}")
+        raise HTTPException(status_code=500, detail=f"添加竞品失败: {str(e)}")
 
 @app.post("/api/core-products/{asin}/competitors/confirm")
 async def api_confirm_competitor(asin: str, req: DirectCompetitorRequest):
-    success = confirm_suggested_competitor(asin, req.competitorAsin.strip().upper())
-    return {
-        "status": "ok",
-        "success": success,
-        "ownerAsin": asin,
-        "competitorAsin": req.competitorAsin.strip().upper(),
-        "message": f"已将系统建议竞品 {req.competitorAsin} 转为已确认直接竞品"
-    }
+    try:
+        res = await confirm_suggested_competitor(asin, req.competitorAsin.strip().upper())
+        return {
+            "status": "ok",
+            "success": True,
+            "ownerAsin": asin,
+            "competitorAsin": req.competitorAsin.strip().upper(),
+            "message": f"已将系统建议竞品 {req.competitorAsin} 验证并转为已确认直接竞品，已同步最新数据",
+            "data": res
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error confirming competitor: {e}")
+        raise HTTPException(status_code=500, detail=f"确认竞品失败: {str(e)}")
 
 @app.delete("/api/core-products/{asin}/competitors/{comp_asin}")
 async def api_delete_competitor(asin: str, comp_asin: str):
@@ -223,7 +215,12 @@ async def api_get_data_jobs():
 
 @app.get("/api/data-jobs/status")
 async def api_get_automation_status():
-    return get_automation_status()
+    status_data = get_live_scheduler_status()
+    return {
+        "status": "ok",
+        "data": status_data,
+        **status_data
+    }
 
 @app.post("/api/data-jobs/refresh")
 async def api_refresh_data_jobs(marketplace: str = "US"):

@@ -4,7 +4,14 @@ const API = {
     try {
       const res = await fetch(url);
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        let errMsg = `HTTP ${res.status}`;
+        try {
+          const j = await res.json();
+          errMsg = j.detail || j.error || errMsg;
+        } catch (_) {
+          errMsg = await res.text();
+        }
+        return { status: "error", error: errMsg, data: null };
       }
       return await res.json();
     } catch (e) {
@@ -21,7 +28,14 @@ const API = {
         body: JSON.stringify(payload)
       });
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        let errMsg = `HTTP ${res.status}`;
+        try {
+          const j = await res.json();
+          errMsg = j.detail || j.error || errMsg;
+        } catch (_) {
+          errMsg = await res.text();
+        }
+        return { status: "error", error: errMsg, data: null };
       }
       return await res.json();
     } catch (e) {

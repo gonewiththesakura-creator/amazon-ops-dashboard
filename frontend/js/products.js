@@ -130,7 +130,42 @@ const ProductsView = {
     // 4. Competitors
     this.competitorData = compRes.data || {};
     this.updateCompetitorBadges();
+    this.renderBossCompetitorCard();
     this.switchCompetitorPool(this.activePool || "direct");
+  },
+
+  renderBossCompetitorCard() {
+    if (!this.competitorData) return;
+    const bs = this.competitorData.bossSummary || {};
+    const directCount = (this.competitorData.directCompetitors || []).length;
+
+    const statusBadge = document.getElementById("bossCompStatusBadge");
+    if (statusBadge) {
+      statusBadge.textContent = directCount > 0
+        ? `已对标 ${directCount} 款直接竞品`
+        : "尚未锁定直接竞品";
+      statusBadge.className = directCount > 0
+        ? "px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700"
+        : "px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700";
+    }
+
+    const challengeEl = document.getElementById("bossCompPrimaryChallenge");
+    if (challengeEl) {
+      challengeEl.textContent = bs.primaryChallenge || "正在综合对比我方与直接竞品参数...";
+    }
+
+    const gaps = bs.top3Gaps || [];
+    const g1 = document.getElementById("bossGap1");
+    const g2 = document.getElementById("bossGap2");
+    const g3 = document.getElementById("bossGap3");
+    if (g1) g1.textContent = gaps[0] || "--";
+    if (g2) g2.textContent = gaps[1] || "--";
+    if (g3) g3.textContent = gaps[2] || "--";
+
+    const actionsEl = document.getElementById("bossCompActions");
+    if (actionsEl && bs.recommendedActions) {
+      actionsEl.innerHTML = bs.recommendedActions.map(a => `<div>• ${a}</div>`).join("");
+    }
   },
 
   updateCompetitorBadges() {
@@ -295,7 +330,7 @@ const ProductsView = {
       this.activePool = "direct";
       await this.loadProduct(this.currentAsin);
     } else {
-      alert(`添加竞品失败: ${res?.error || '未知错误'}`);
+      alert(`⚠️ 添加直接竞品失败：\n${res?.error || res?.detail || 'ASIN 无效或在亚马逊美国站不存在，已拒绝添加。'}`);
     }
   },
 
@@ -305,7 +340,7 @@ const ProductsView = {
       this.activePool = "direct";
       await this.loadProduct(this.currentAsin);
     } else {
-      alert(`确认直接竞品失败: ${res?.error || '未知错误'}`);
+      alert(`⚠️ 确认直接竞品失败：\n${res?.error || res?.detail || 'ASIN 验证未通过。'}`);
     }
   },
 
