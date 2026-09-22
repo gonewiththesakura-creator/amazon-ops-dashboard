@@ -11,6 +11,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from .config import settings
+from .database import db
+from .mcp_client import mcp_client
 from .services.core_market_service import get_core_market_overview, get_market_tree
 from .services.core_product_service import (
     get_core_products_registry,
@@ -21,7 +23,13 @@ from .services.core_product_service import (
     confirm_suggested_competitor,
     remove_direct_competitor
 )
-from .services.pipeline_service import get_pipeline_products_list, add_pipeline_product
+from .services.pipeline_service import (
+    get_pipeline_products_list,
+    add_pipeline_product,
+    get_pipeline_product_detail,
+    update_pipeline_decision,
+    trigger_pipeline_research
+)
 from .services.opportunity_lab_service import (
     conduct_new_category_research,
     get_all_research_projects,
@@ -30,6 +38,18 @@ from .services.opportunity_lab_service import (
 from .services.rule_diagnostics import get_executive_briefing, generate_rule_diagnostics
 from .services.data_job_service import list_data_jobs, trigger_daily_refresh, get_automation_status
 from .services.replenishment_service import calculate_replenishment
+from .services.trend_service import get_dashboard_trends
+from .services.collection_service import (
+    collect_asin_package,
+    collect_category_package,
+    collect_keywords_package,
+    start_batch_asins_collection
+)
+from .services.asset_service import (
+    get_warehouse_stats,
+    search_warehouse_assets,
+    get_raw_response_detail
+)
 
 from .scheduler import start_scheduler, stop_scheduler, get_live_scheduler_status
 
@@ -38,10 +58,14 @@ logger = logging.getLogger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     start_scheduler()
+    try:
+        await mcp_client.scan_and_sync_tool_registry()
+    except Exception as e:
+        logger.warning(f"Initial MCP scan deferred: {e}")
     yield
     stop_scheduler()
 
-app = FastAPI(title="Amazon AI Opportunity Intelligence API", version="2.3.0", lifespan=lifespan)
+app = FastAPI(title="Amazon AI Opportunity Intelligence API", version="2.5.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -71,6 +95,28 @@ class DirectCompetitorRequest(BaseModel):
     competitorAsin: str
     notes: Optional[str] = "人工添加直接竞品"
 
+class PipelineDecisionRequest(BaseModel):
+    decision: str
+    rationale: Optional[str] = None
+
+class CollectionAsinRequest(BaseModel):
+    asin: str
+    marketplace: Optional[str] = "US"
+    forceRefresh: Optional[bool] = False
+
+class CollectionCategoryRequest(BaseModel):
+    nodeIdPath: str
+    marketplace: Optional[str] = "US"
+    forceRefresh: Optional[bool] = False
+
+class CollectionKeywordsRequest(BaseModel):
+    keywords: Any
+    marketplace: Optional[str] = "US"
+
+class CollectionBatchAsinsRequest(BaseModel):
+    asins: Any
+    marketplace: Optional[str] = "US"
+
 class ReplenishRequest(BaseModel):
     stock: int = 200
     dailySales: int = 50
@@ -86,7 +132,7 @@ async def health():
     return {
         "status": "ok",
         "service": "Amazon AI Opportunity Intelligence",
-        "version": "2.3.0",
+        "version": "2.5.0",
         "mcp_url": settings.MCP_URL
     }
 
@@ -177,6 +223,11 @@ async def api_delete_competitor(asin: str, comp_asin: str):
         "message": f"已从直接竞品池移除 {comp_asin}"
     }
 
+# ----------------- Dashboard Trend Cockpit (V2.4) -----------------
+@app.get("/api/dashboard/trends")
+async def api_dashboard_trends(range: str = "12m"):
+    return get_dashboard_trends(time_range=range)
+
 # ----------------- Module 3: Pipeline (Memory Foam Supply Chain) -----------------
 @app.get("/api/pipeline")
 async def api_get_pipeline(marketplace: str = "US"):
@@ -185,6 +236,29 @@ async def api_get_pipeline(marketplace: str = "US"):
 @app.post("/api/pipeline")
 async def api_add_pipeline(req: PipelineAddRequest):
     return add_pipeline_product(req.dict())
+
+@app.get("/api/pipeline/{item_id}")
+async def api_get_pipeline_detail(item_id: str, marketplace: str = "US"):
+    detail = await get_pipeline_product_detail(item_id, marketplace)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Pipeline candidate not found")
+    return {"status": "ok", "data": detail}
+
+@app.patch("/api/pipeline/{item_id}/status")
+@app.post("/api/pipeline/{item_id}/decision")
+async def api_update_pipeline_decision(item_id: str, req: PipelineDecisionRequest):
+    return update_pipeline_decision(item_id, req.decision, req.rationale)
+
+@app.post("/api/pipeline/{item_id}/research")
+async def api_trigger_pipeline_research(item_id: str, marketplace: str = "US"):
+    return await trigger_pipeline_research(item_id, marketplace)
+
+@app.get("/api/pipeline/{item_id}/history")
+async def api_get_pipeline_history(item_id: str, marketplace: str = "US"):
+    detail = await get_pipeline_product_detail(item_id, marketplace)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Pipeline candidate not found")
+    return {"status": "ok", "data": detail.get("trend12m", [])}
 
 # ----------------- Module 4: Opportunity Lab (New Categories) -----------------
 @app.get("/api/research")
@@ -204,6 +278,58 @@ async def api_get_research_by_id(project_id: int):
 @app.post("/api/research")
 async def api_conduct_research(req: ResearchRequest):
     return await conduct_new_category_research(req.userQuestion, req.marketplace or "US")
+
+# ----------------- Manual Data Collection Center (V2.5) -----------------
+@app.post("/api/collection/asin")
+async def api_collection_asin(req: CollectionAsinRequest):
+    return await collect_asin_package(req.asin, req.marketplace or "US", req.forceRefresh or False)
+
+@app.post("/api/collection/category")
+async def api_collection_category(req: CollectionCategoryRequest):
+    return await collect_category_package(req.nodeIdPath, req.marketplace or "US", req.forceRefresh or False)
+
+@app.post("/api/collection/keywords")
+async def api_collection_keywords(req: CollectionKeywordsRequest):
+    return await collect_keywords_package(req.keywords, req.marketplace or "US")
+
+@app.post("/api/collection/batch-asins")
+async def api_collection_batch_asins(req: CollectionBatchAsinsRequest):
+    return start_batch_asins_collection(req.asins, req.marketplace or "US")
+
+@app.get("/api/collection/jobs/{job_id}")
+async def api_get_collection_job(job_id: int):
+    job = db.get_collection_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Collection job not found")
+    return {"status": "ok", "data": job}
+
+@app.get("/api/collection/jobs")
+async def api_list_collection_jobs(limit: int = 20):
+    return {"status": "ok", "data": db.list_collection_jobs(limit=limit)}
+
+@app.get("/api/collection/tools")
+async def api_get_collection_tools():
+    return {"status": "ok", "data": db.get_mcp_tools()}
+
+@app.post("/api/collection/scan-tools")
+async def api_scan_tools():
+    return await mcp_client.scan_and_sync_tool_registry()
+
+# ----------------- Local Data Warehouse Assets (V2.5) -----------------
+@app.get("/api/assets/stats")
+async def api_get_asset_stats():
+    return get_warehouse_stats()
+
+@app.get("/api/assets/search")
+async def api_search_assets(q: str = Query(..., min_length=1), type: Optional[str] = None, limit: int = 50):
+    return search_warehouse_assets(q, asset_type=type, limit=limit)
+
+@app.get("/api/assets/raw/{raw_id}")
+async def api_get_raw_asset(raw_id: int):
+    raw = get_raw_response_detail(raw_id)
+    if raw.get("status") == "error":
+        raise HTTPException(status_code=404, detail=raw.get("message"))
+    return raw
 
 # ----------------- Data Center & Automation Jobs -----------------
 @app.get("/api/data-jobs")

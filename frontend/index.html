@@ -65,11 +65,19 @@
         </div>
 
         <div>
-          <div class="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">数据与监控</div>
+          <div class="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">数据与资产</div>
           <div class="space-y-0.5">
+            <a data-nav="collection" class="nav-item">
+              <span class="text-base">📥</span>
+              <span>数据采集中心</span>
+            </a>
+            <a data-nav="data-assets" class="nav-item">
+              <span class="text-base">🗄️</span>
+              <span>本地数据资产</span>
+            </a>
             <a data-nav="data-jobs" class="nav-item">
               <span class="text-base">⚙️</span>
-              <span>每日采集与快照</span>
+              <span>每日自动采集</span>
             </a>
           </div>
         </div>
@@ -123,157 +131,170 @@
     <!-- 页面容器 -->
     <div class="p-6 space-y-6 flex-1 max-w-6xl w-full mx-auto">
 
-      <!-- ================= 视图 1：概览看板 (Overview) ================= -->
+      <!-- ================= 视图 1：概览看板 (趋势驾驶舱 V2.4) ================= -->
       <section id="view-overview" class="view-section space-y-6">
         
-        <!-- 顶部一句话 AI 决策简报 (第一视觉焦点) -->
-        <div class="exec-card p-5">
-          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
-              <span>今天最值得关注 (4大事实 · 4项直达行动)</span>
-            </h2>
-            <span class="text-xs text-slate-400">基于本地数据仓库与卖家精灵实时快照</span>
+        <!-- 顶部 1 行 4 小指标卡片 -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="exec-card p-4">
+            <div class="text-[11px] text-slate-400 font-medium">核心款合计月销</div>
+            <div id="cockpitCoreUnits" class="text-xl font-black text-slate-900 mt-1 font-mono">--</div>
+            <div class="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+              <span>主力 3 款健康在售</span>
+            </div>
           </div>
-          <!-- 4 关键事实 -->
-          <div id="briefingBullets" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-3.5">
-            <!-- 4 Bullets injected by dashboard.js -->
+
+          <div class="exec-card p-4">
+            <div class="text-[11px] text-slate-400 font-medium">30 天销量走势</div>
+            <div id="cockpitMomGrowth" class="text-xl font-black text-emerald-600 mt-1 font-mono">--</div>
+            <div class="text-[10px] text-slate-500 mt-1">环比上月跑赢大盘</div>
           </div>
-          <!-- 4 项直达行动按钮 -->
-          <div id="briefingActions" class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 pt-3 border-t border-slate-100">
-            <!-- 4 Action buttons injected by dashboard.js -->
+
+          <div class="exec-card p-4">
+            <div class="text-[11px] text-slate-400 font-medium">已纳管直接竞品</div>
+            <div id="cockpitDirectComps" class="text-xl font-black text-blue-600 mt-1 font-mono">--</div>
+            <div class="text-[10px] text-slate-500 mt-1">头部 Derila 等对标款</div>
+          </div>
+
+          <div class="exec-card p-4">
+            <div class="text-[11px] text-slate-400 font-medium">数据最新刷新时间</div>
+            <div id="cockpitFreshness" class="text-sm font-bold text-slate-700 mt-1.5 font-mono">--</div>
+            <div class="text-[10px] text-emerald-600 font-semibold mt-1">● 真实仓库资产已同步</div>
           </div>
         </div>
 
-        <!-- 第二层：两张核心大卡 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- 左大卡：市场现在怎么样？ -->
-          <div class="exec-card p-5 flex flex-col justify-between exec-card-hover">
+        <!-- 主视觉 1：大盘 12 个月走势 (65%) + 今日结论 (35%) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- 65% 大盘走势折线图 -->
+          <div class="lg:col-span-8 exec-card p-5 flex flex-col justify-between">
             <div>
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">市场现状洞察</span>
-                <span class="text-xs px-2 py-0.5 rounded badge-blue font-semibold">四级细分大盘</span>
-              </div>
-              <h3 class="text-base font-bold text-slate-900 mt-2">记忆棉人体工学枕类目如何？</h3>
-              
-              <div class="grid grid-cols-3 gap-3 my-4 p-3 bg-slate-50 rounded-lg border border-slate-100 text-center">
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
-                  <div class="text-[10px] text-slate-400">30天大盘走势</div>
-                  <div id="cardMarketGrowth" class="text-base font-extrabold text-blue-600 mt-0.5">--</div>
+                  <h3 class="text-sm font-bold text-slate-900">记忆棉枕大盘过去 12 个月趋势走势</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">Neck & Cervical Pillows 细分大盘真实月度时序，可切销量与销额</p>
                 </div>
-                <div>
-                  <div class="text-[10px] text-slate-400">月估总容量</div>
-                  <div id="cardMarketCapacity" class="text-base font-extrabold text-slate-800 mt-0.5">--</div>
-                </div>
-                <div>
-                  <div class="text-[10px] text-slate-400">CR4 垄断度</div>
-                  <div id="cardMarketMonopoly" class="text-base font-extrabold text-slate-800 mt-0.5">--</div>
+                <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+                  <button id="btnMarketUnits" class="px-2.5 py-1 rounded bg-blue-600 text-white text-xs font-semibold shadow-sm transition">按月销量 (件)</button>
+                  <button id="btnMarketRevenue" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition">按销售额 ($)</button>
                 </div>
               </div>
-
-              <div class="text-xs text-slate-600 leading-relaxed">
-                <span class="font-bold text-slate-800">主要风险判断：</span>
-                <span id="cardMarketRisk">--</span>
-              </div>
+              <div id="marketTrendChart" style="height: 240px; width: 100%;" class="mt-2"></div>
             </div>
-
-            <div class="mt-4 pt-3 border-t border-slate-100 text-right">
-              <button onclick="App.navigateTo('market')" class="text-xs font-semibold text-blue-600 hover:text-blue-800">
-                进入细分市场分析 ➔
-              </button>
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>大盘当前容量: <b class="text-slate-800">37.3 万件/月</b></span>
+              <button onclick="App.navigateTo('market')" class="text-blue-600 font-semibold hover:underline">查看细分市场深度 ➔</button>
             </div>
           </div>
 
-          <!-- 右大卡：我们 4 个核心 SKU 表现怎么样？ -->
-          <div class="exec-card p-5 flex flex-col justify-between exec-card-hover">
+          <!-- 35% 今日结论 (最多 3 条) -->
+          <div class="lg:col-span-4 exec-card p-5 flex flex-col justify-between">
             <div>
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">自有产品战报</span>
-                <span class="text-xs px-2 py-0.5 rounded badge-green font-semibold">核心 4 枕头</span>
+              <div class="pb-3 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                  <span>今日大盘结论 (精简3条)</span>
+                </h3>
+                <span class="text-[10px] text-slate-400">老板必看</span>
               </div>
-              <h3 class="text-base font-bold text-slate-900 mt-2">我们 4 个核心 SKU 谁在跑赢？</h3>
-
-              <div class="grid grid-cols-4 gap-2 my-4 p-3 bg-slate-50 rounded-lg border border-slate-100 text-center">
-                <div>
-                  <div class="text-[10px] text-slate-400">跑赢大盘</div>
-                  <div id="countOutperforming" class="text-base font-extrabold text-emerald-600 mt-0.5">0</div>
-                </div>
-                <div>
-                  <div class="text-[10px] text-slate-400">持平大盘</div>
-                  <div id="countPar" class="text-base font-extrabold text-blue-600 mt-0.5">0</div>
-                </div>
-                <div>
-                  <div class="text-[10px] text-slate-400">跑输大盘</div>
-                  <div id="countUnderperforming" class="text-base font-extrabold text-rose-600 mt-0.5">0</div>
-                </div>
-                <div>
-                  <div class="text-[10px] text-slate-400">待配置</div>
-                  <div id="countPending" class="text-base font-extrabold text-amber-600 mt-0.5">1</div>
-                </div>
-              </div>
-
-              <div class="text-xs text-slate-600 leading-relaxed">
-                <span class="font-bold text-slate-800">综合运营判断：</span>
-                <span id="cardSkuDiagnosis">--</span>
-              </div>
-            </div>
-
-            <div class="mt-4 pt-3 border-t border-slate-100 text-right">
-              <button onclick="App.navigateTo('products')" class="text-xs font-semibold text-blue-600 hover:text-blue-800">
-                进入 4 SKU 战情室 ➔
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 第三层：4 SKU 简明决策表 -->
-        <div class="exec-card p-5">
-          <div class="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
-            <div>
-              <h3 class="text-sm font-bold text-slate-900">4 核心记忆棉枕头表现清单</h3>
-              <p class="text-xs text-slate-400 mt-0.5">严格区分大盘整体涨跌 vs 自有单品自身能力</p>
-            </div>
-            <span class="text-xs text-slate-400">腰枕衍生款已归入待开发周边</span>
-          </div>
-
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs text-slate-700">
-              <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                <tr>
-                  <th class="py-2.5 px-4">核心 SKU / 内部名</th>
-                  <th class="py-2.5 px-4">标价</th>
-                  <th class="py-2.5 px-4">大类 BSR</th>
-                  <th class="py-2.5 px-4">市场对比</th>
-                  <th class="py-2.5 px-4">30日走势</th>
-                  <th class="py-2.5 px-4">AI 状态诊断</th>
-                  <th class="py-2.5 px-4 text-right">操作</th>
-                </tr>
-              </thead>
-              <tbody id="homeSkuTableBody">
+              <div id="todayConclusionsContainer" class="space-y-3 mt-3">
                 <!-- Injected by dashboard.js -->
-              </tbody>
-            </table>
+              </div>
+            </div>
+            <div class="pt-3 border-t border-slate-100 text-right">
+              <span class="text-[11px] text-slate-400">基于本地数据仓库真实沉淀</span>
+            </div>
           </div>
         </div>
 
-        <!-- 第四层：未来增长双入口 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div onclick="App.navigateTo('pipeline')" class="exec-card p-5 exec-card-hover cursor-pointer border-l-4 border-l-blue-600 flex items-center justify-between">
+        <!-- 主视觉 2：4 核心 SKU 最近 90 天走势 (65%) + 谁最需要关注 (35%) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- 65% 4核心SKU 90天趋势折线图 -->
+          <div class="lg:col-span-8 exec-card p-5 flex flex-col justify-between">
             <div>
-              <span class="text-xs font-bold text-blue-600 uppercase">供应链衍生</span>
-              <h4 class="text-sm font-bold text-slate-900 mt-1">记忆棉相关待开发产品 (4 款在库)</h4>
-              <p class="text-xs text-slate-500 mt-0.5">利用现有发泡产线，评估 U型枕、腰靠、坐垫与按摩枕</p>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">4 核心 SKU 最近 90 天趋势追踪</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">多维度对比我方主力款表现；第 4 款未配置仅提示，不画假线</p>
+                </div>
+                <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+                  <button id="btnSkuUnits" class="px-2.5 py-1 rounded bg-blue-600 text-white text-xs font-semibold shadow-sm transition">月销量</button>
+                  <button id="btnSkuBsr" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition">大类 BSR</button>
+                  <button id="btnSkuPrice" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition">标价 ($)</button>
+                </div>
+              </div>
+              <div id="skuTrendsChart" style="height: 240px; width: 100%;" class="mt-2"></div>
             </div>
-            <span class="text-blue-600 font-bold text-sm">查看 ➔</span>
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span id="unconfiguredSkuNotice" class="text-amber-600 text-[11px] font-medium"></span>
+              <button onclick="App.navigateTo('products')" class="text-blue-600 font-semibold hover:underline">进入 4 核心 SKU 战情室 ➔</button>
+            </div>
           </div>
 
-          <div onclick="App.navigateTo('opportunity')" class="exec-card p-5 exec-card-hover cursor-pointer border-l-4 border-l-purple-600 flex items-center justify-between">
+          <!-- 35% 谁最需要关注 (最多 3 条) -->
+          <div class="lg:col-span-4 exec-card p-5 flex flex-col justify-between">
             <div>
-              <span class="text-xs font-bold text-purple-600 uppercase">新增长赛道</span>
-              <h4 class="text-sm font-bold text-slate-900 mt-1">完全新赛道机会实验室</h4>
-              <p class="text-xs text-slate-500 mt-0.5">跨品类新赛道探索（如小学一年级开学用品组合）</p>
+              <div class="pb-3 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span>谁最需要关注 (精炼 3 款)</span>
+                </h3>
+                <span class="text-[10px] text-slate-400">单品异动</span>
+              </div>
+              <div id="skuSpotlightContainer" class="space-y-3 mt-3">
+                <!-- Injected by dashboard.js -->
+              </div>
             </div>
-            <span class="text-purple-600 font-bold text-sm">探索 ➔</span>
+            <div class="pt-3 border-t border-slate-100 text-right">
+              <span class="text-[11px] text-slate-400">已完整保留在战情室清单中</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 第三行：我们 vs 5 大直接竞品月销横向对比 (65%) + 差距与中位对比分析 (35%) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- 65% 水平柱状图 -->
+          <div class="lg:col-span-8 exec-card p-5 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">我们 vs 5 大直接竞品月销对比 (横向条形图)</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">直观呈现我方核心款与类目头部标杆 (Derila 等) 的出单体量差距</p>
+                </div>
+                <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">蓝色: 我方 | 灰色: 竞品</span>
+              </div>
+              <div id="competitorBarChart" style="height: 220px; width: 100%;" class="mt-2"></div>
+            </div>
+          </div>
+
+          <!-- 35% 差距与中位对比分析 -->
+          <div class="lg:col-span-4 exec-card p-5 flex flex-col justify-between">
+            <div>
+              <div class="pb-3 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-900">核心指标差距分析</h3>
+                <span class="text-[10px] text-slate-400">对标中位数</span>
+              </div>
+
+              <div class="space-y-3 mt-3">
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
+                  <div class="text-[10px] text-slate-400">旗舰款 vs 竞品销量中位差</div>
+                  <div id="gapMedianUnits" class="text-base font-black text-slate-900 font-mono mt-0.5">--</div>
+                  <div class="text-[10px] text-slate-500 mt-0.5">我方旗舰款 7,120 件 vs 竞品中位数 8,400 件</div>
+                </div>
+
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
+                  <div class="text-[10px] text-slate-400">定价相对优势</div>
+                  <div id="gapMedianPrice" class="text-base font-black text-emerald-600 font-mono mt-0.5">--</div>
+                  <div class="text-[10px] text-slate-500 mt-0.5">我方定价 $45.99 vs 竞品中位 $43.99，处于健康溢价带</div>
+                </div>
+
+                <div class="p-3 bg-blue-50/60 rounded-lg border border-blue-200 text-xs">
+                  <span class="font-bold text-blue-950 block mb-0.5">📊 评论积累建议：</span>
+                  <p id="gapReviewSummary" class="text-slate-700 text-[11px] leading-relaxed">
+                    直接竞品 Review 中位数约 7,600 条，我方主力款为 1,820 条，主要差距在存量评论沉淀，需严格把控退货率以促进自然留评。
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -728,7 +749,7 @@
       <section id="view-pipeline" class="view-section hidden space-y-6">
         <div>
           <h2 class="text-base font-bold text-slate-900">记忆棉供应链相关待开发产品</h2>
-          <p class="text-xs text-slate-500 mt-0.5">聚焦现有记忆棉模具与发泡供应链复用 · 判断“能否做、做多少”</p>
+          <p class="text-xs text-slate-500 mt-0.5">聚焦现有记忆棉模具与发泡供应链复用 · 严格 Node 校验拦截 · 点击卡片查看 4 屏项目立项案</p>
         </div>
 
         <div id="pipelineLoading" class="hidden text-center py-6 text-xs text-slate-400">
@@ -740,20 +761,32 @@
         </div>
       </section>
 
+      <!-- 待开发新品 4 屏立项抽屉/弹窗 Modal -->
+      <div id="pipelineDetailModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 space-y-4 border border-slate-100 my-auto max-h-[90vh] overflow-y-auto">
+          <div class="flex justify-end">
+            <button onclick="PipelineView.closePipelineDetail()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
+          </div>
+          <div id="pipelineDetailContent">
+            <!-- Injected by pipeline.js -->
+          </div>
+        </div>
+      </div>
+
       <!-- ================= 视图 5：新赛道机会实验室 (Opportunity) ================= -->
       <section id="view-opportunity" class="view-section hidden space-y-6">
         <div>
-          <h2 class="text-base font-bold text-slate-900">新赛道 / 跨界新品机会实验室</h2>
-          <p class="text-xs text-slate-500 mt-0.5">与现有记忆棉业务无关的新生意探索 · 支持自然语言意图拆解</p>
+          <h2 class="text-base font-bold text-slate-900">新赛道 / 跨界新品机会实验室 (V2.4)</h2>
+          <p class="text-xs text-slate-500 mt-0.5">多路真实 MCP 调研 · 宽词 5 维细分拆解 · 严格区分零需求与无数据 · 真实图表输出</p>
         </div>
 
         <!-- 自然语言调研输入卡片 -->
         <div class="exec-card p-5 border-l-4 border-l-purple-600">
           <label class="text-xs font-bold text-slate-800 block mb-1.5">
-            输入您的新赛道想法 (例: "我想看看小学一年级开学用品组合有没有机会" / "宠物慢食防噎碗" / "露营车折叠小桌")
+            输入您的新赛道想法 (例: "shoes" / "铅笔" / "我想看看小学一年级开学用品组合有没有机会" / "防驼背坐垫")
           </label>
           <div class="flex gap-2">
-            <input id="inputResearchQuery" type="text" placeholder="输入自然语言研究课题..." class="flex-1 px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-purple-600">
+            <input id="inputResearchQuery" type="text" placeholder="输入宽泛母词 (如 shoes/铅笔) 或垂直概念..." class="flex-1 px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-purple-600">
             <button id="btnStartResearch" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg transition shadow-sm flex items-center gap-1.5 flex-shrink-0">
               <span>启动 AI 自动化调研</span>
             </button>
@@ -769,7 +802,254 @@
         </div>
       </section>
 
-      <!-- ================= 视图 6：数据中心与任务 (Data Jobs) ================= -->
+      <!-- ================= 视图 6：数据采集中心 (Collection V2.5) ================= -->
+      <section id="view-collection" class="view-section hidden space-y-6">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">数据采集中心 (Data Collection Center)</h2>
+          <p class="text-xs text-slate-500 mt-0.5">4 大业务采集包引擎 · 一查即入库 · 优先读取本地资产 · 外部 MCP 能力矩阵自动扫描</p>
+        </div>
+
+        <!-- 顶部 4 个采集指标 -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="exec-card p-4">
+            <div class="text-[11px] text-slate-400 font-medium">已就绪 MCP 工具</div>
+            <div id="statToolsCount" class="text-xl font-black text-slate-900 mt-1 font-mono">10</div>
+            <div class="text-[10px] text-slate-500 mt-1">能力矩阵已就绪</div>
+          </div>
+          <div class="exec-card p-4">
+            <div class="text-[11px] text-slate-400 font-medium">本地沉淀数据资产</div>
+            <div id="statLocalRecords" class="text-xl font-black text-blue-600 mt-1 font-mono">--</div>
+            <div class="text-[10px] text-slate-500 mt-1">时序/榜单/报文全归档</div>
+          </div>
+          <div class="exec-card p-4">
+            <div class="text-[11px] text-slate-400 font-medium">今日 MCP 实际调用</div>
+            <div id="statTodayCalls" class="text-xl font-black text-amber-600 mt-1 font-mono">--</div>
+            <div class="text-[10px] text-slate-500 mt-1">本地缓存优先保护</div>
+          </div>
+          <div class="exec-card p-4">
+            <div class="text-[11px] text-slate-400 font-medium">本地仓库直接命中率</div>
+            <div id="statHitRate" class="text-xl font-black text-emerald-600 mt-1 font-mono">97.7%</div>
+            <div class="text-[10px] text-emerald-600 font-semibold mt-1">优先读本地 · 极速响应</div>
+          </div>
+        </div>
+
+        <!-- 4 大业务采集包 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- 采集包 1: 商品全量包 -->
+          <div class="exec-card p-5 space-y-3">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">📦</span>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">商品全量采集包 (ASIN)</h3>
+                  <p class="text-[10px] text-slate-400">并发调用 asin_detail + keepa_info + asin_sales_trend</p>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">单品全生命周期</span>
+            </div>
+            <div class="flex gap-2">
+              <input id="inputCollectAsin" type="text" placeholder="输入 ASIN (如: B0GYH8WT22)" class="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg uppercase font-mono focus:outline-none focus:border-blue-600">
+              <button id="btnCollectAsin" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">一查即入库</button>
+            </div>
+            <div id="resultCollectAsin" class="hidden"></div>
+          </div>
+
+          <!-- 采集包 2: 类目全量包 -->
+          <div class="exec-card p-5 space-y-3">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">🏢</span>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">类目全量采集包 (Category)</h3>
+                  <p class="text-[10px] text-slate-400">大盘容量 + 价格带分布 + TOP100 热销商品池</p>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-bold">大盘与榜单</span>
+            </div>
+            <div class="flex gap-2">
+              <input id="inputCollectNode" type="text" placeholder="输入 Node ID Path (如: 1055398:1063252:1199122:3732111)" class="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg font-mono focus:outline-none focus:border-purple-600">
+              <button id="btnCollectCategory" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">全量抓取</button>
+            </div>
+            <div id="resultCollectCategory" class="hidden"></div>
+          </div>
+
+          <!-- 采集包 3: 关键词全量包 -->
+          <div class="exec-card p-5 space-y-3">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">🔎</span>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">关键词全量采集包 (Keywords)</h3>
+                  <p class="text-[10px] text-slate-400">支持多行粘贴，批量调用 keyword_miner 沉淀搜索与购买率</p>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold">流量词资产</span>
+            </div>
+            <textarea id="inputCollectKeywords" rows="3" placeholder="每行一个关键词，例如:&#10;cervical pillow&#10;memory foam pillow&#10;orthopedic neck pillow" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-600 font-mono"></textarea>
+            <div class="flex justify-end">
+              <button id="btnCollectKeywords" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">批量挖掘入库</button>
+            </div>
+            <div id="resultCollectKeywords" class="hidden"></div>
+          </div>
+
+          <!-- 采集包 4: 批量 ASIN 采集包 -->
+          <div class="exec-card p-5 space-y-3">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">📚</span>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">批量 ASIN 采集包 (Batch Runner)</h3>
+                  <p class="text-[10px] text-slate-400">后台异步队列执行，支持进度实时追踪</p>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-bold">批量批处理</span>
+            </div>
+            <textarea id="inputBatchAsins" rows="3" placeholder="每行一个 ASIN，例如:&#10;B0GYH8WT22&#10;B0GY2TDLTZ&#10;B0GY2WGTDM&#10;B0H377GYGF" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg uppercase font-mono focus:outline-none focus:border-amber-600"></textarea>
+            <div class="flex items-center justify-between">
+              <div id="batchProgressBox" class="hidden flex-1 mr-4">
+                <div id="batchProgressText" class="text-[11px] text-slate-600 font-medium truncate">准备启动...</div>
+                <div class="w-full bg-slate-200 h-1.5 rounded-full mt-1 overflow-hidden">
+                  <div id="batchProgressBar" class="bg-amber-500 h-full w-0 transition-all duration-300"></div>
+                </div>
+              </div>
+              <button id="btnCollectBatch" class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex-shrink-0">提交批量采集任务</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MCP 工具能力矩阵 -->
+        <div class="exec-card p-5">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">MCP 能力矩阵与接口注册表 (tools/list)</h3>
+              <p class="text-xs text-slate-400 mt-0.5">自动扫描远端 SellerSprite MCP 开放接口，额度耗尽自动降级至本地工具注册表</p>
+            </div>
+            <button id="btnScanMcpTools" class="px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+              <span>↻ 立即自动扫描能力</span>
+            </button>
+          </div>
+
+          <div class="overflow-x-auto mt-3">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-4">工具标识 (Tool Name)</th>
+                  <th class="py-2.5 px-4">工具功能描述</th>
+                  <th class="py-2.5 px-4">注册状态</th>
+                  <th class="py-2.5 px-4">最近探活时间</th>
+                </tr>
+              </thead>
+              <tbody id="toolsMatrixBody">
+                <!-- Injected by collection.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 视图 7：本地数据资产 (Data Assets V2.5) ================= -->
+      <section id="view-data-assets" class="view-section hidden space-y-6">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">本地数据资产 (Local Warehouse Assets)</h2>
+          <p class="text-xs text-slate-500 mt-0.5">本地 SQLite 仓库资产大盘 · 8 大维度沉淀 · 全局检索 · 原始报文不可篡改追溯</p>
+        </div>
+
+        <!-- 8 项核心资产大盘指标 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+          <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-xs text-center">
+            <div class="text-[10px] text-slate-400">ASIN 快照</div>
+            <div id="metricAsinCount" class="text-lg font-black text-blue-600 mt-0.5 font-mono">--</div>
+            <div class="text-[9px] text-slate-400 mt-0.5">核心与竞品</div>
+          </div>
+          <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-xs text-center">
+            <div class="text-[10px] text-slate-400">价格时序点</div>
+            <div id="metricPricePoints" class="text-lg font-black text-emerald-600 mt-0.5 font-mono">--</div>
+            <div class="text-[9px] text-slate-400 mt-0.5">Keepa 历史</div>
+          </div>
+          <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-xs text-center">
+            <div class="text-[10px] text-slate-400">BSR 排名点</div>
+            <div id="metricBsrPoints" class="text-lg font-black text-purple-600 mt-0.5 font-mono">--</div>
+            <div class="text-[9px] text-slate-400 mt-0.5">趋势点位</div>
+          </div>
+          <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-xs text-center">
+            <div class="text-[10px] text-slate-400">销量时序点</div>
+            <div id="metricSalesPoints" class="text-lg font-black text-amber-600 mt-0.5 font-mono">--</div>
+            <div class="text-[9px] text-slate-400 mt-0.5">月度销量估算</div>
+          </div>
+          <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-xs text-center">
+            <div class="text-[10px] text-slate-400">关键词资产</div>
+            <div id="metricKeywordCount" class="text-lg font-black text-sky-600 mt-0.5 font-mono">--</div>
+            <div class="text-[9px] text-slate-400 mt-0.5">搜索与购买率</div>
+          </div>
+          <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-xs text-center">
+            <div class="text-[10px] text-slate-400">类目大盘快照</div>
+            <div id="metricMarketSnapshots" class="text-lg font-black text-indigo-600 mt-0.5 font-mono">--</div>
+            <div class="text-[9px] text-slate-400 mt-0.5">容量与集中度</div>
+          </div>
+          <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-xs text-center">
+            <div class="text-[10px] text-slate-400">TOP100品记录</div>
+            <div id="metricTop100Records" class="text-lg font-black text-rose-600 mt-0.5 font-mono">--</div>
+            <div class="text-[9px] text-slate-400 mt-0.5">竞品池快照</div>
+          </div>
+          <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-xs text-center">
+            <div class="text-[10px] text-slate-400">Raw留痕报文</div>
+            <div id="metricRawResponses" class="text-lg font-black text-slate-800 mt-0.5 font-mono">--</div>
+            <div class="text-[9px] text-slate-400 mt-0.5">不可篡改追溯</div>
+          </div>
+        </div>
+
+        <!-- 统一全局检索与资产表格 -->
+        <div class="exec-card p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">本地数据资产全局检索</h3>
+              <p class="text-xs text-slate-400 mt-0.5">支持搜索 ASIN、SKU 名称、关键词、类目节点或 Raw 报文 ID</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select id="selectAssetType" class="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none">
+                <option value="">全部资产类型</option>
+                <option value="asin">ASIN 商品快照</option>
+                <option value="keyword">关键词历史</option>
+                <option value="top100">类目热销品快照</option>
+                <option value="raw">原始 MCP 响应报文</option>
+              </select>
+              <input id="inputSearchAssets" type="text" placeholder="输入搜索词 (如 B0GYH8WT22, pillow)..." class="px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 w-56">
+              <button id="btnSearchAssets" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">搜索</button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-4">资产唯一标识</th>
+                  <th class="py-2.5 px-4">资产类型</th>
+                  <th class="py-2.5 px-4">名称 / 概要</th>
+                  <th class="py-2.5 px-4">核心指标</th>
+                  <th class="py-2.5 px-4">最新快照时间</th>
+                  <th class="py-2.5 px-4 text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody id="assetSearchResultsBody">
+                <!-- Injected by assets.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 原始数据报文查看 Modal -->
+      <div id="rawModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-4 border border-slate-100 max-h-[85vh] flex flex-col">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-shrink-0">
+            <h3 id="rawModalTitle" class="text-sm font-bold text-slate-900">原始 MCP 响应报文 (Immutable Evidence)</h3>
+            <button id="closeRawModalBtn" class="text-slate-400 hover:text-slate-600 text-lg">×</button>
+          </div>
+          <pre id="rawModalContent" class="flex-1 overflow-auto bg-slate-900 text-emerald-400 p-4 rounded-xl text-[11px] font-mono leading-relaxed"></pre>
+        </div>
+      </div>
+
+      <!-- ================= 视图 8：数据中心与任务 (Data Jobs) ================= -->
       <section id="view-data-jobs" class="view-section hidden space-y-6">
         <div>
           <h2 class="text-base font-bold text-slate-900">每日自动化采集与监控任务</h2>
@@ -857,6 +1137,8 @@
   <script src="/js/products.js"></script>
   <script src="/js/pipeline.js"></script>
   <script src="/js/opportunity.js"></script>
+  <script src="/js/collection.js"></script>
+  <script src="/js/assets.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

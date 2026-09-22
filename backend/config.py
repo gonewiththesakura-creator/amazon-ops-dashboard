@@ -11,18 +11,19 @@ else:
     load_dotenv()
 
 class Settings:
+    APP_ENV: str = os.getenv("APP_ENV", "production")
     MCP_URL: str = os.getenv("SELLERSPRITE_MCP_URL", "https://mcp.sellersprite.com/mcp").rstrip("?").rstrip("/")
     MCP_SECRET: str = os.getenv("SELLERSPRITE_MCP_SECRET", "").strip()
     HOST: str = os.getenv("HOST", "127.0.0.1")
     PORT: int = int(os.getenv("PORT", "8000"))
     
-    # SQLite Database for V2 business store & snapshots
-    DB_PATH: str = os.path.join(os.path.dirname(__file__), "v2_store.db")
-    CACHE_DB_PATH: str = os.path.join(os.path.dirname(__file__), "cache.db")
+    # SQLite Database for V2 business store & snapshots (supports test isolation via DB_PATH env)
+    DB_PATH: str = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "v2_store.db"))
+    CACHE_DB_PATH: str = os.getenv("CACHE_DB_PATH", os.path.join(os.path.dirname(__file__), "cache.db"))
     CACHE_EXPIRE_HOURS: int = 24
 
     def validate(self):
-        if not self.MCP_SECRET:
+        if not self.MCP_SECRET and self.APP_ENV != "test":
             raise RuntimeError(
                 "CRITICAL: SELLERSPRITE_MCP_SECRET is missing!\n"
                 "Please configure SELLERSPRITE_MCP_SECRET in .env or system environment variables.\n"

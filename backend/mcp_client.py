@@ -158,4 +158,63 @@ class SellerSpriteMCPClient:
                 "error": str(e)
             }
 
+    async def scan_and_sync_tool_registry(self) -> Dict[str, Any]:
+        """Scans MCP server capabilities via tools/list RPC and syncs to local mcp_tool_registry table."""
+        from .database import db
+        now_iso = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {}
+        }
+        
+        discovered = []
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(self.target_url, headers=self.headers, json=payload)
+                resp.raise_for_status()
+                res_json = resp.json()
+                
+                tools_data = res_json.get("result", {}).get("tools", [])
+                
+                # Check for quota limitation response
+                if not tools_data and "name" in res_json and res_json.get("name") == "secret_no_remaining":
+                    logger.warning("[MCP SCAN] Quota exhausted (secret_no_remaining). Preserving pre-seeded local capability matrix.")
+                    return {
+                        "status": "quota_exhausted",
+                        "message": "远程 MCP 额度已用尽 (secret_no_remaining)，已加载本地 10 大核心能力矩阵",
+                        "discoveredCount": 10,
+                        "tools": db.get_mcp_tools()
+                    }
+
+                if isinstance(tools_data, list) and tools_data:
+                    for t in tools_data:
+                        t_name = t.get("name")
+                        t_desc = t.get("description", "")
+                        t_schema = json.dumps(t.get("inputSchema", {}), ensure_ascii=False)
+                        if t_name:
+                            db.upsert_mcp_tool(t_name, t_desc, t_schema, enabled=1)
+                            discovered.append({"tool_name": t_name, "description": t_desc})
+                    
+                    logger.info(f"[MCP SCAN] Successfully scanned and registered {len(discovered)} tools from MCP server.")
+                    return {
+                        "status": "ok",
+                        "message": f"成功扫描并同步 {len(discovered)} 个 MCP 工具",
+                        "discoveredCount": len(discovered),
+                        "tools": db.get_mcp_tools()
+                    }
+        except Exception as e:
+            logger.warning(f"[MCP SCAN] Failed to list tools from MCP ({str(e)}). Preserving existing database tool registry.")
+        
+        # Fallback to local registry
+        local_tools = db.get_mcp_tools()
+        return {
+            "status": "fallback_local",
+            "message": "MCP 扫描已回退至本地工具注册表",
+            "discoveredCount": len(local_tools),
+            "tools": local_tools
+        }
+
 mcp_client = SellerSpriteMCPClient()
+

@@ -101,6 +101,69 @@ const API = {
     return this.post("/api/data-jobs/refresh", {});
   },
 
+  // V2.4 & V2.5 Endpoints
+  getDashboardTrends(range = "12m") {
+    return this.get(`/api/dashboard/trends?range=${range}`);
+  },
+
+  getPipelineDetail(id) {
+    return this.get(`/api/pipeline/${encodeURIComponent(id)}`);
+  },
+
+  updatePipelineDecision(id, decision, rationale = "") {
+    return this.post(`/api/pipeline/${encodeURIComponent(id)}/decision`, { decision, rationale });
+  },
+
+  triggerPipelineResearch(id) {
+    return this.post(`/api/pipeline/${encodeURIComponent(id)}/research`, {});
+  },
+
+  collectAsinPackage(asin, forceRefresh = false) {
+    return this.post("/api/collection/asin", { asin, forceRefresh });
+  },
+
+  collectCategoryPackage(nodeIdPath, forceRefresh = false) {
+    return this.post("/api/collection/category", { nodeIdPath, forceRefresh });
+  },
+
+  collectKeywordsPackage(keywords) {
+    return this.post("/api/collection/keywords", { keywords });
+  },
+
+  collectBatchAsins(asins) {
+    return this.post("/api/collection/batch-asins", { asins });
+  },
+
+  getCollectionJob(jobId) {
+    return this.get(`/api/collection/jobs/${jobId}`);
+  },
+
+  listCollectionJobs() {
+    return this.get("/api/collection/jobs");
+  },
+
+  getCollectionTools() {
+    return this.get("/api/collection/tools");
+  },
+
+  scanCollectionTools() {
+    return this.post("/api/collection/scan-tools", {});
+  },
+
+  getAssetStats() {
+    return this.get("/api/assets/stats");
+  },
+
+  searchAssets(q, type = null) {
+    let url = `/api/assets/search?q=${encodeURIComponent(q)}`;
+    if (type) url += `&type=${encodeURIComponent(type)}`;
+    return this.get(url);
+  },
+
+  getRawAsset(rawId) {
+    return this.get(`/api/assets/raw/${rawId}`);
+  },
+
   addManualCompetitor(asin, competitorAsin, notes = "手工添加直接竞品") {
     return this.post(`/api/core-products/${asin}/competitors/manual`, { competitorAsin, notes });
   },

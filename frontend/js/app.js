@@ -72,6 +72,10 @@ const App = {
       await PipelineView.init();
     } else if (viewName === "opportunity") {
       await OpportunityView.init();
+    } else if (viewName === "collection") {
+      await Collection.init();
+    } else if (viewName === "data-assets") {
+      await DataAssets.init();
     } else if (viewName === "data-jobs") {
       await this.loadDataJobsView();
     }
